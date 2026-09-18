@@ -147,43 +147,88 @@ def cost(sp, x0, x1, y1, size, raised):
     return c
 
 
-def columns(spans):
-    """按 x 区间的连通性把行片段归栏。诗行居中、长短不一也不会被误切。"""
-    if not spans:
+def columns(frags):
+    """把行片段归栏。
+
+    一栏的行起笔对齐，这是最硬的信号；诗行居中、长短不一，起笔并不齐，
+    那就看横向是不是压在一起。光看区间连通不行——插图说明常常横跨中缝，
+    一下就把左右两栏连成一片，《过秦论》的注释就是这么读串的。"""
+    if not frags:
         return []
-    rest = sorted(spans, key=lambda f: f[0]["x0"])
-    span_r = lambda f: max(s["x1"] for s in f)
-    groups, cur, right = [], [rest[0]], span_r(rest[0])
-    for frag in rest[1:]:
-        if frag[0]["x0"] <= right + COL_GAP:
-            cur.append(frag)
-            right = max(right, span_r(frag))
+    groups = []
+    for frag in sorted(frags, key=lambda f: f[0]["x0"]):
+        x0, x1 = frag[0]["x0"], max(s["x1"] for s in frag)
+        for g in groups:
+            over = min(x1, g["x1"]) - max(x0, g["x0"])
+            if abs(g["x0"] - x0) < 30 or over > 0.5 * min(x1 - x0, g["x1"] - g["x0"]):
+                g["x0"], g["x1"] = min(g["x0"], x0), max(g["x1"], x1)
+                g["items"].append(frag)
+                break
         else:
-            groups.append(cur)
-            cur, right = [frag], span_r(frag)
-    groups.append(cur)
-    return groups
+            groups.append({"x0": x0, "x1": x1, "items": [frag]})
+    return [g["items"] for g in sorted(groups, key=lambda g: g["x0"])]
 
 
-def fragments(spans):
+def fragments(spans, marks=()):
     """把一块区域拆成有序的行片段。
 
     不能先分栏再聚行：注释有时排得极满，左右两栏只隔两三个点，
     横向投影根本切不开。反过来做就稳了——先按基线聚行，一「行」里
     真出现了二十点以上的空当，那就是跨了栏，就地切开；切出来的片段
     再按横向重叠归栏，最后左栏读到底、再读右栏。"""
-    frags = []
-    for row in rows(spans):
-        row = sorted(row, key=lambda s: s["x0"])
-        cur = [row[0]]
+    lines = [sorted(r, key=lambda s: s["x0"]) for r in rows(spans)]
+
+    def cut(row, brk):
+        out, cur = [], [row[0]]
         for sp in row[1:]:
-            if sp["x0"] - max(s["x1"] for s in cur) > ROW_SPLIT:
-                frags.append(cur)
+            if brk(sp, cur):
+                out.append(cur)
                 cur = [sp]
             else:
                 cur.append(sp)
-        frags.append(cur)
+        out.append(cur)
+        return out
 
+    def plain_gap(sp, cur):
+        """两个字之间的空当有多宽。角标不参与分行（它是上标，不在基线上），
+        可它确实占着位置，得把紧跟在字后面的那个角标算进来——否则它让出的
+        那点空当会被误认成跨栏，《离骚》就是这么被拦腰切开的。"""
+        right = max(s["x1"] for s in cur)
+        for m in marks:
+            if abs(m["y1"] - sp["y1"]) < 16 and right - 2 <= m["x0"] <= right + 4:
+                right = max(right, m["x1"])
+        return sp["x0"] - right
+
+    frags = []
+    for row in lines:
+        frags += cut(row, lambda sp, cur: plain_gap(sp, cur) > ROW_SPLIT)
+
+    # 栏与栏之间有时挨得太近，二十点的空当切不开（《过秦论》那页只隔十五点）。
+    # 但一栏的起笔处全页都对齐，所以反过来用：哪几个横坐标反复当行首，
+    # 那就是栏的起笔，行中间再撞见它，就是串到隔壁栏去了。
+    starts, tally = [], {}
+    for f in frags:
+        x = f[0]["x0"]
+        for s in starts:
+            if abs(s - x) < 4:
+                tally[s] += 1
+                break
+        else:
+            starts.append(x)
+            tally[x] = 1
+    edges = [s for s in starts if tally[s] >= 3]
+    if len(edges) > 1:
+        def brk(sp, cur):
+            gap = plain_gap(sp, cur)
+            if gap > ROW_SPLIT:
+                return True
+            # 空当没那么大，但正落在某一栏的起笔上——那也是串栏了。
+            # 连着排的字之间没有空当，不会被误切。
+            return gap > 8 and any(abs(sp["x0"] - e) < 4 for e in edges) \
+                and sp["x0"] - cur[0]["x0"] > 40
+        frags = []
+        for row in lines:
+            frags += cut(row, brk)
     return frags
 
 
@@ -297,7 +342,7 @@ def dumppage(page, pno, book="", glyphs=None):
     # 反过来做不行：按单个字定区块，行里的数字会掉到别的区块去，
     # 在行中留下空当，又被当成跨栏切一刀。
     buckets = {}
-    for frag in fragments(text):
+    for frag in fragments(text, marks):
         buckets.setdefault(vote(frag, bsize), []).append(frag)
     buckets.pop("pageno", None)
 
@@ -384,11 +429,13 @@ def dumppage(page, pno, book="", glyphs=None):
                     buf.append(sp["text"])
                 prev = sp
             text = squeeze("".join(buf))
+            # 比对时把角标摘掉：补的那个字身上往往正挂着一个角标。
+            plain = re.sub(r"⟦\d+⟧", "", text)
             for key, char in heads.get((book, pno, row["group"]), []):
-                if text.startswith(key):
+                if plain.startswith(key):
                     text = char + text
             for key, char in tails.get((book, pno, row["group"]), []):
-                if text.endswith(key):
+                if plain.endswith(key):
                     text = text + char
             row["text"] = text
             row["x1"] = round(row["x1"], 1)

@@ -1,0 +1,287 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+第三步：把校对过的中间稿变成 data.js 的三个板块。
+
+corpus　　正文，难字用大括号圈起来，篇头第四项标背诵范围
+hardChars　难字表，课本注了音的字把音一起带上
+notes　　　注释，一行一条：来源 | 字词 | 释义 | 例句 | 出处
+
+注释靠 ⟦n⟧ 定位——它标出了这条注释挂在正文的哪个字上，例句就从那里取。
+课本的长注释里常常套着小注（「衿，衣服的交领」），这些也各拆成一条。
+
+    python3 tools/build.py            # 生成 extract/data-片段.txt
+    python3 tools/build.py 必修上      # 只做一册
+"""
+
+import collections
+import glob
+import json
+import os
+import re
+import sys
+
+HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SRC = os.path.join(HERE, "extract", "篇")
+RAW = os.path.join(HERE, "extract", "raw")
+OUT = os.path.join(HERE, "extract")
+
+BOOKS = ["必修上", "必修下", "选必上", "选必中", "选必下"]
+MARK = re.compile(r"⟦(\d+)⟧")
+CJK = re.compile(r"[一-鿿]")
+# 课本给的注音，形如「衿（jīn）」「搔首踟蹰（chíchú）」。
+# 四声的符号要齐全——漏了第一声，「jīn」就认不出来；ɡ 是国际音标的 g，课本混用。
+VOWEL = "aeiouüāáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ"
+PINYIN = re.compile(r"([一-鿿]+)（([a-zü" + VOWEL + r"ńňǹɡ\s]+)）")
+SYLLABLE = re.compile(r"(?:[zcs]h|[bpmfdtnlgkhjqxrwyzcsɡ])?[" + VOWEL +
+                      r"]+(?:n[gɡ]?|r)?")
+# 常用多音字（不、说、读、还……）课本也注音，但那是随语境变读，
+# 不是字难写。全书出现这么多次的字不进难字表，它们的异读注释里本来就有。
+COMMON = 60
+# 注释正文里的小注：句号之后，「某词，怎么讲。」
+SUBNOTE = re.compile(r"。([^，。；：？！“”‘’（）〔〕《》]{1,4})，([^。]+。)")
+
+STOP = "。！？"
+
+
+def readpiece(path):
+    text = open(path, encoding="utf-8").read()
+    head, rest = text.split("\n\n", 1)
+    title, author, genre = [c.strip() for c in head.lstrip("# ").split("|")]
+
+    recite = None
+    for line in rest.splitlines():
+        if line.startswith("背诵 ") and "否" not in line:
+            recite = line[3:].strip()
+        if line.startswith("## 正文"):
+            break
+
+    paras, notes = [], []
+    section, cur = None, []
+    for line in rest.splitlines():
+        if line.startswith("## "):
+            if cur:
+                paras.append(cur)
+                cur = []
+            section = line[3:].strip()
+            continue
+        if section == "正文":
+            if not line.strip():
+                if cur:
+                    paras.append(cur)
+                    cur = []
+            else:
+                cur.append(line)
+        elif section == "注释" and "\t" in line:
+            n, body = line.split("\t", 1)
+            if n.strip().isdigit():
+                notes.append((int(n), body.strip()))
+    if cur:
+        paras.append(cur)
+    return {"title": title, "author": author, "genre": genre,
+            "recite": recite, "paras": paras, "notes": notes}
+
+
+def bookfreq():
+    """全书字频。常用字动辄成千上万次，生僻字个位数，用来认难写字。"""
+    cnt = collections.Counter()
+    for f in glob.glob(os.path.join(RAW, "*.json")):
+        d = json.load(open(f, encoding="utf-8"))
+        for p in d["pages"]:
+            for grp in ("body", "notes"):
+                for l in p[grp]:
+                    cnt.update(CJK.findall(MARK.sub("", l["text"])))
+    return cnt
+
+
+def sentences(para, genre):
+    """按 data.js 的分题粒度切句：诗一行一题；文按句号，太短的并进下一题。
+    「求，尔何如？」这种四五个字的问句单独成题没意思，合过去才像一道题。"""
+    if genre == "诗":
+        return list(para)
+    text = "".join(para)
+    out, buf, depth = [], "", 0
+    for ch in text:
+        buf += ch
+        if ch in "“‘":
+            depth += 1
+        elif ch in "”’":
+            depth -= 1
+        elif ch in STOP and depth <= 0:
+            out.append(buf)
+            buf = ""
+    if buf:
+        out.append(buf)
+
+    # 句末的引号要跟着上一句走，不能自己吊在下一句头上
+    merged = []
+    for s in out:
+        if merged and s[:1] in "”’":
+            merged[-1] += s[0]
+            s = s[1:]
+        if s:
+            merged.append(s)
+
+    out, i = [], 0
+    while i < len(merged):
+        s = merged[i]
+        while len(CJK.findall(s)) < 10 and i + 1 < len(merged):
+            i += 1
+            s += merged[i]
+        out.append(s)
+        i += 1
+    if len(out) > 1 and len(CJK.findall(out[-1])) < 10:
+        tail = out.pop()          # 先弹出再拼，不然索引会跟着变
+        out[-1] += tail
+    return out
+
+
+def entry_of(body):
+    """一条注释拆成：词条、释义。头一条「选自……」没有词条。"""
+    m = re.match(r"^[〔﹝\[]([^〕﹞\]]*)[〕﹞\]](.*)$", body)
+    if not m:
+        return None, body
+    return m.group(1).strip(), m.group(2).strip()
+
+
+def depinyin(s):
+    """去掉词条里的注音，剩下的才对得上正文。"""
+    return re.sub(r"（[^）]*）", "", s)
+
+
+def build(book, freq):
+    pieces = []
+    for path in sorted(glob.glob(os.path.join(SRC, book + "-*.md"))):
+        pieces.append(readpiece(path))
+
+    corpus, notes, hard, misses = [], [], {}, []
+
+    for pc in pieces:
+        # 难字：课本注了音的（难读），加上全书里也没出现几次的（难写）
+        sounds = {}
+        for _, body in pc["notes"]:
+            for word, py in PINYIN.findall(body):
+                # 注音是给词注的，几个音节就管前面几个字，
+                # 「搔首踟蹰（chíchú）」两个音节，「踟」「蹰」各拿一个。
+                syl = SYLLABLE.findall(py.strip())
+                n = min(len(syl), len(word))
+                for ch, s in zip(word[-n:], syl[-n:]):
+                    sounds.setdefault(ch, s)
+
+        plain = "".join(MARK.sub("", l) for para in pc["paras"] for l in para)
+        rare = {ch for ch in set(CJK.findall(plain))
+                if freq.get(ch, 0) <= 3
+                or (ch in sounds and freq.get(ch, 0) <= COMMON)}
+        for ch in rare:
+            if ch in sounds:
+                hard.setdefault(ch, sounds[ch])
+            else:
+                hard.setdefault(ch, "")
+
+        # 正文：圈难字，篇头第四项记背诵范围
+        seg = pc["recite"] or "不背"
+        if seg and seg.startswith("第"):
+            seg = "背" + seg.replace("第", "").replace("段", "")
+        elif seg == "全篇":
+            seg = "背"
+        corpus.append("# %s | %s | %s | %s" % (pc["title"], pc["author"],
+                                               pc["genre"], seg))
+        for para in pc["paras"]:
+            corpus.append("")
+            body = "".join(l for l in para) if pc["genre"] == "文" else None
+            lines = [body] if body else list(para)
+            for line in lines:
+                bare = MARK.sub("", line)
+                corpus.append("".join("{%s}" % c if c in rare else c for c in bare))
+        corpus.append("")
+
+        # 注释：⟦n⟧ 标出这条挂在正文哪个字上，例句就从那一句里取
+        spots = {}
+        for para in pc["paras"]:
+            flat = "".join(para)
+            for m in MARK.finditer(flat):
+                spots[int(m.group(1))] = (para, m.start(), MARK.sub("", flat[:m.start()]))
+
+        for n, body in pc["notes"]:
+            term, gloss = entry_of(body)
+            if not term or n not in spots:
+                continue
+            para, _, before = spots[n]
+            key = depinyin(term)
+            # 长句词条课本写成「以地事秦……火不灭」，掐头去尾中间省略。
+            # 角标挂在末尾那几个字上，所以从后往前认，再回头找起点。
+            if "……" in key:
+                head, tail = key.split("……")[0], key.split("……")[-1]
+                at = before.rfind(head)
+                if at >= 0 and before.endswith(tail):
+                    key = before[at:]
+            # 词条对不上正文，多半是正文掉了字——课本注了什么，正文就得有什么。
+            # 这是抓漏字最灵的一道关口：《劝学》的「輮以为轮」就是这么露出来的。
+            if not before.endswith(key):
+                misses.append((pc["title"], n, key, before[-14:]))
+                continue
+            sents = sentences([MARK.sub("", l) for l in para], pc["genre"])
+            at = len(before) - len(key)
+            # 词条有时跨句（〔呦呦鹿鸣，食野之苹。我有嘉宾，鼓瑟吹笙〕），
+            # 例句要把它整个裹进来，不能切一半。
+            pos, lo, hi = 0, None, None
+            for i, s in enumerate(sents):
+                if pos <= at < pos + len(s) and lo is None:
+                    lo, off = i, at - pos
+                if pos < at + len(key) <= pos + len(s):
+                    hi = i
+                pos += len(s)
+            if lo is None or hi is None:
+                continue
+            whole = "".join(sents[lo:hi + 1])
+            ex = whole[:off] + "{" + key + "}" + whole[off + len(key):]
+            notes.append(("课本", key, gloss, ex.strip(), pc["title"]))
+
+            # 长注释里套着的小注也各拆一条，这样单个字也能考到
+            for sub, exp in SUBNOTE.findall(gloss):
+                if sub not in ex.replace("{", "").replace("}", ""):
+                    continue
+                plain_ex = ex.replace("{", "").replace("}", "")
+                i = plain_ex.find(sub)
+                notes.append(("课本", sub, exp.strip(),
+                              plain_ex[:i] + "{" + sub + "}" + plain_ex[i + len(sub):],
+                              pc["title"]))
+    return corpus, hard, notes, misses
+
+
+def main():
+    freq = bookfreq()
+    books = sys.argv[1:] or BOOKS
+    allc, allh, alln, allm = [], {}, [], []
+    for b in books:
+        c, h, n, m = build(b, freq)
+        allm += m
+        allc += ["// ==== %s ====" % b] + c
+        for k, v in h.items():
+            allh.setdefault(k, v) or (v and allh.__setitem__(k, v))
+        alln += n
+
+    hard = " ".join(("%s(%s)" % (k, v)) if v else k for k, v in sorted(allh.items()))
+    dst = os.path.join(OUT, "data-片段.txt")
+    with open(dst, "w", encoding="utf-8") as f:
+        f.write("=== corpus ===\n" + "\n".join(allc))
+        f.write("\n\n=== hardChars ===\n" + hard)
+        f.write("\n\n=== notes ===\n")
+        for row in alln:
+            f.write(" | ".join(row) + "\n")
+    print("篇 %d，难字 %d，注释 %d 条 → %s"
+          % (sum(1 for l in allc if l.startswith("# ")), len(allh), len(alln),
+             os.path.relpath(dst, HERE)))
+    report = os.path.join(OUT, "对不上的词条.txt")
+    if not allm and os.path.exists(report):
+        os.remove(report)          # 清掉上一轮的，免得看着旧账当新账
+    if allm:
+        with open(report, "w", encoding="utf-8") as f:
+            for title, n, key, ctx in allm:
+                f.write("%s\t注释%d\t〔%s〕\t正文作：…%s\n" % (title, n, key, ctx))
+        print("有 %d 条注释的词条在正文里找不着 → %s"
+              % (len(allm), os.path.relpath(report, HERE)))
+
+
+if __name__ == "__main__":
+    main()

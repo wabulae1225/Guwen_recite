@@ -138,9 +138,18 @@ def paragraphs(lines, genre):
             base.setdefault(l["page"], []).append(l["x0"])
         for pno, xs in base.items():
             base[pno] = max(set(xs), key=lambda v: sum(1 for w in xs if abs(w - v) < 1.5))
+        edge = {}
+        for l in lines:
+            edge.setdefault(l["page"], []).append(l["x1"])
+        for pno, xs in edge.items():
+            edge[pno] = max(xs)
         for l in lines:
             indent = l["x0"] - base[l["page"]]
-            if cur and abs(indent - 24) < 8:
+            # 段首缩进两格，可上一行必须是段末（排不满的短行）。
+            # 排得满满当当的一行后面不会接段首——那多半是这一行的头一个字
+            # 是画上去的（《庖丁解牛》的「軱」），让整行看着像缩进了。
+            ended = cur and cur[-1]["x1"] < edge[cur[-1]["page"]] - 14
+            if cur and abs(indent - 24) < 8 and ended:
                 paras.append(cur)
                 cur = []
             cur.append(l)
@@ -281,12 +290,12 @@ def run(book):
                    and mine(m["y0"] + 8)}
             ownmap.append((pno, sorted(own)))
 
-            for n in split_notes(page["notes"]):
-                ref = n.get("circ") or (n["n"] - nbody if n["n"] else None)
-                if ref is not None and ref in own:
-                    notes.append(dict(n, page=pno, ref=ref))
-                elif ref is None and notes:
-                    notes[-1]["text"] += n["text"]
+            # 注释和正文角标按出现次序一一对应：本页第 k 条注释配第 k 个角标。
+            # 不能拿角标编号去减——《孔雀东南飞》头一条注释印的是普通的「①」，
+            # 不在角标之列，用编号一减，整篇注释就全错开一位。
+            for k, n in enumerate(split_notes(page["notes"]), 1):
+                if k in own:
+                    notes.append(dict(n, page=pno, ref=k))
 
             caps += page["captions"]
             holes += [dict(h, page=pno) for h in page["holes"] if mine(h["y"])]
