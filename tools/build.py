@@ -153,6 +153,8 @@ def readpiece(path):
                 notes.append((int(n), body.strip()))
     if cur:
         paras.append(cur)
+    if genre == "诗":
+        paras = [relineate(p) for p in paras]
     return {"title": title, "author": author, "genre": genre,
             "recite": recite, "paras": paras, "notes": notes}
 
@@ -211,6 +213,37 @@ def sentences(para, genre):
     return out
 
 
+def relineate(para):
+    """词、歌行、骚体在课本里是连排的——一行排满就换行，物理行并不是句子。
+    《念奴娇》头一行印到「故垒」就断了，照搬下来一行成一题，句子是残的。
+    所以按句末标点重新断行，一行还它一句。律诗本来就一句一行，不动。"""
+    lines = [MARK.sub("", l) for l in para]
+    ends = sum(1 for l in lines if l and l[-1] in STOP)
+    if len(lines) < 2 or ends >= len(lines) * 0.75:
+        return list(para)
+
+    out, buf, depth = [], "", 0
+    for ch in "".join(para):
+        buf += ch
+        if ch in "“‘":
+            depth += 1
+        elif ch in "”’":
+            depth -= 1
+        elif ch in STOP and depth <= 0:
+            out.append(buf)
+            buf = ""
+    if buf:
+        out.append(buf)
+    merged = []
+    for s in out:                      # 句末的引号跟着上一句走
+        if merged and s[:1] in "”’":
+            merged[-1] += s[0]
+            s = s[1:]
+        if s:
+            merged.append(s)
+    return merged
+
+
 def entry_of(body):
     """一条注释拆成：词条、释义。头一条「选自……」没有词条。"""
     m = re.match(r"^[〔﹝\[]([^〕﹞\]]*)[〕﹞\]](.*)$", body)
@@ -261,7 +294,22 @@ def build(book, freq):
             seg = "背"
         corpus.append("# %s | %s | %s | %s" % (pc["title"], pc["author"],
                                                pc["genre"], seg))
-        for para in pc["paras"]:
+        # 《侍坐》里「“求！尔何如？”」「夫子哂之。」自成一段，短到不够一道题，
+        # 段内又没得合并。并进下一段，题目才有个样子。诗的分节不动。
+        paras = pc["paras"]
+        if pc["genre"] == "文":
+            paras, hold = [], []
+            for para in pc["paras"]:
+                hold = hold + para
+                if len(CJK.findall(MARK.sub("", "".join(hold)))) >= 10:
+                    paras.append(hold)
+                    hold = []
+            if hold:
+                if paras:
+                    paras[-1] += hold
+                else:
+                    paras.append(hold)
+        for para in paras:
             corpus.append("")
             body = "".join(l for l in para) if pc["genre"] == "文" else None
             lines = [body] if body else list(para)
@@ -272,7 +320,7 @@ def build(book, freq):
 
         # 注释：⟦n⟧ 标出这条挂在正文哪个字上，例句就从那一句里取
         spots = {}
-        for para in pc["paras"]:
+        for para in paras:
             flat = "".join(para)
             for m in MARK.finditer(flat):
                 spots[int(m.group(1))] = (para, m.start(), MARK.sub("", flat[:m.start()]))

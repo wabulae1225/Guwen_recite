@@ -285,7 +285,9 @@ def load_glyphs():
                 continue
             kind, book, page, group, key, char = (cols + [""])[:6]
             if kind == "gap":
-                gaps[(book, int(page), group, int(key))] = char
+                # 按上下文认位置，不按序号——空洞的个数会随版面处理变动，
+                # 序号一漂，补的字就全错位了。
+                gaps[(book, int(page), group, key)] = char
             elif kind == "head":
                 heads.setdefault((book, int(page), group), []).append((key, char))
             elif kind == "tail":
@@ -354,6 +356,14 @@ def dumppage(page, pno, book="", glyphs=None):
 
     def emit(frags, rows_out):
         for ci, frag in order(frags):
+            # 同一栏里基线相同的两段，本来就是一行，中间那道大空当不是换行。
+            # 接回去，让空洞检测去报——那儿也许是版面留的白（词的上下阕），
+            # 也许是缺了画上去的字，两者一样宽，分不出来，交给补字表定。
+            if rows_out and rows_out[-1]["col"] == ci \
+                    and abs(rows_out[-1]["y1"] - max(s["y1"] for s in frag)) < 3:
+                rows_out[-1]["spans"] += frag
+                rows_out[-1]["x1"] = max(rows_out[-1]["x1"], max(s["x1"] for s in frag))
+                continue
             rows_out.append({"col": ci, "spans": frag,
                              "x0": round(frag[0]["x0"], 1),
                              "y0": round(min(s["y0"] for s in frag), 1),
@@ -411,8 +421,8 @@ def dumppage(page, pno, book="", glyphs=None):
                         and not sp["text"].startswith(" ")
                         and sp["x0"] - prev["x1"] > sp["size"] * 0.75):
                     g = row["group"]
-                    i = seen[g] = seen.get(g, -1) + 1
-                    fill = gaps.get((book, pno, g, i))
+                    ctx = prev["text"][-6:] + "|" + sp["text"][:6]
+                    fill = gaps.get((book, pno, g, ctx))
                     buf.append(fill or "□")
                     if not fill:
                         holes.append({"group": g, "y": round(sp["y0"], 1),

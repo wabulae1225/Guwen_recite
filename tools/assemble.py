@@ -123,10 +123,26 @@ def parse_recite(hints):
     return out, clause
 
 
+def split_gap(lines):
+    """行里那个 ¶ 是版面留的白（词的上下阕之间），就地断成两行两段。"""
+    out = []
+    for l in lines:
+        if "¶" not in l["text"]:
+            out.append(l)
+            continue
+        parts = l["text"].split("¶")
+        for i, part in enumerate(parts):
+            if not part.strip():
+                continue
+            out.append(dict(l, text=part, gapBefore=i > 0))
+    return out
+
+
 def paragraphs(lines, genre):
     """还原分段。文靠首行缩进，诗靠行距跳变（词的上下阕之间书上会空一行）。"""
     if not lines:
         return []
+    lines = split_gap(lines)
     paras, cur = [], []
 
     if genre == "文":
@@ -137,13 +153,19 @@ def paragraphs(lines, genre):
         for l in lines:
             base.setdefault(l["page"], []).append(l["x0"])
         for pno, xs in base.items():
-            base[pno] = max(set(xs), key=lambda v: sum(1 for w in xs if abs(w - v) < 1.5))
+            # 取左边界，不取众数：《侍坐》全篇都是短对话，段首行比续行还多，
+            # 按众数算，基准线会落到缩进那一列上去，整篇就并成一段了。
+            common = [v for v in set(xs) if sum(1 for w in xs if abs(w - v) < 1.5) >= 2]
+            base[pno] = min(common) if common else min(xs)
         edge = {}
         for l in lines:
             edge.setdefault(l["page"], []).append(l["x1"])
         for pno, xs in edge.items():
             edge[pno] = max(xs)
         for l in lines:
+            if l.get("gapBefore") and cur:
+                paras.append(cur)
+                cur = []
             indent = l["x0"] - base[l["page"]]
             # 段首缩进两格，可上一行必须是段末（排不满的短行）。
             # 排得满满当当的一行后面不会接段首——那多半是这一行的头一个字
@@ -160,8 +182,8 @@ def paragraphs(lines, genre):
                 gaps.append(b["y0"] - a["y0"])
         lead = sorted(gaps)[len(gaps) // 2] if gaps else 21.0
         for i, l in enumerate(lines):
-            if cur and l["page"] == lines[i - 1]["page"] \
-                    and l["y0"] - lines[i - 1]["y0"] > lead * 1.5:
+            if cur and (l.get("gapBefore") or (l["page"] == lines[i - 1]["page"]
+                        and l["y0"] - lines[i - 1]["y0"] > lead * 1.5)):
                 paras.append(cur)
                 cur = []
             cur.append(l)

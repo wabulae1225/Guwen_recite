@@ -634,11 +634,12 @@ function renderReading(){
           ? (p.reciteSegs.length ? "背第"+p.reciteSegs.join("、")+"段" : "要背")
           : "不要求背")+'</span></div>';
 
+    let seq = 0;                    // 角标整篇连着编，跟课本一样
     const paras = p.paras.map((lines, idx)=>{
       const flat = lines.join("");
       const hits = bare ? [] : notesInPara(p.title, flat);
       const sup = new Map();
-      hits.forEach((h,i)=> sup.set(h.at, i+1));
+      hits.forEach(h=> sup.set(h.at, ++seq));
       let k = 0;
       // 逐字走一遍，该挂角标的地方挂上，诗还按原来的断行分行
       const html = lines.map(l=>{
@@ -649,7 +650,8 @@ function renderReading(){
         }
         return s;
       }).join(p.type === "verse" ? "<br>" : "");
-      const notes = hits.length ? '<ol class="readnotes">' + hits.map(h=>
+      const notes = hits.length
+        ? '<ol class="readnotes" start="'+(seq-hits.length+1)+'">' + hits.map(h=>
           '<li><b>'+esc(h.nt.word)+'</b>'
           + (PINYIN.get(h.nt.word) ? '<span class="py">'+esc(PINYIN.get(h.nt.word))+'</span>' : '')
           + '　' + esc(h.nt.def)
