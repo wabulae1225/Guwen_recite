@@ -1,0 +1,3 @@
+# pdfdump 的逐页产物，跑一次 tools/pdfdump.py 就能从 PDF 重新生成，不入库
+extract/raw/
+__pycache__/
