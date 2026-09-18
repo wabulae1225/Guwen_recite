@@ -295,13 +295,15 @@ def build(book, freq):
         corpus.append("# %s | %s | %s | %s" % (pc["title"], pc["author"],
                                                pc["genre"], seg))
         # 《侍坐》里「“求！尔何如？”」「夫子哂之。」自成一段，短到不够一道题，
-        # 段内又没得合并。并进下一段，题目才有个样子。诗的分节不动。
+        # 段内又没得合并，只好并进下一段。门槛压得比分题的十字低：段落是课本
+        # 分的，能不动就不动——《劝学》的「君子曰：学不可以已。」八个字也是一段，
+        # 独立成题不算短，不该并走。诗的分节一概不动。
         paras = pc["paras"]
         if pc["genre"] == "文":
             paras, hold = [], []
             for para in pc["paras"]:
                 hold = hold + para
-                if len(CJK.findall(MARK.sub("", "".join(hold)))) >= 10:
+                if len(CJK.findall(MARK.sub("", "".join(hold)))) >= 6:
                     paras.append(hold)
                     hold = []
             if hold:
