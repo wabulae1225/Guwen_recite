@@ -49,7 +49,11 @@ select{background:#fff;border:1px solid var(--rule);border-radius:2px;padding:6p
 .picker{margin-top:12px;border-top:1px solid var(--rule);padding-top:11px}
 .picker .head{display:flex;align-items:center;gap:12px;margin-bottom:8px}
 .picker .head span{font-size:12px;color:var(--ink-soft)}
-.chips{display:flex;flex-wrap:wrap;gap:7px}
+.chips{display:flex;flex-direction:column;gap:9px}
+.bookrow{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.bookname{background:none;border:none;cursor:pointer;font-size:12px;color:var(--ink-faint);
+  font-family:inherit;padding:4px 6px 4px 0;white-space:nowrap;min-width:52px;text-align:left}
+.bookname:hover{color:var(--cinnabar)}
 .chip{border:1px solid var(--rule);background:#fff;border-radius:2px;padding:5px 11px;
   cursor:pointer;font-family:var(--serif);font-size:14px;color:var(--ink-soft)}
 .chip[aria-pressed="true"]{background:var(--ink);color:var(--paper-card);border-color:var(--ink)}
@@ -122,6 +126,28 @@ select{background:#fff;border:1px solid var(--rule);border-radius:2px;padding:6p
 .wrongs .row{margin-top:11px;display:flex;gap:9px;flex-wrap:wrap}
 
 .empty{color:var(--ink-soft);font-size:15px;line-height:1.95}
+
+/* 看原文：仿课本版式，正文带角标，注释跟在每段后面 */
+.readbar{font-size:13px;color:var(--ink-soft);margin-bottom:14px;
+  border-bottom:1px solid var(--rule);padding-bottom:11px}
+.readbar input{vertical-align:-1px;margin-right:5px}
+.readpage{flex:1}
+.readpiece+.readpiece{margin-top:34px;border-top:1px solid var(--rule);padding-top:26px}
+.readhead{display:flex;align-items:baseline;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.readhead h3{font-family:var(--serif);font-size:19px;margin:0;font-weight:600;letter-spacing:.06em}
+.readhead span{font-size:13px;color:var(--ink-soft);font-family:var(--serif)}
+.readpara{margin-bottom:20px}
+.readpara.toRecite{border-left:2px solid var(--cinnabar-soft);padding-left:13px;margin-left:-15px}
+.readtext{font-family:var(--serif);font-size:19px;line-height:2.2;word-break:break-all}
+.readtext.verse{text-align:center}
+.readtext.prose{text-align:justify;text-indent:2em}
+.anum{font-size:.5em;vertical-align:super;color:var(--cinnabar);margin-left:1px;font-family:var(--sans)}
+.readnotes{margin:9px 0 0;padding-left:1.6em;font-size:13.5px;line-height:1.95;color:var(--ink-soft)}
+.readnotes li{margin-bottom:3px}
+.readnotes b{font-family:var(--serif);font-size:15px;color:var(--ink);font-weight:600}
+.py{font-family:var(--sans);font-size:.72em;color:var(--ink-faint);margin-left:3px;vertical-align:1px}
+.chip.norecite{font-style:normal;color:var(--ink-faint)}
+.chip.norecite[aria-pressed="true"]{color:var(--paper-card)}
 .done{font-family:var(--serif);font-size:19px;line-height:2}
 .panel{background:var(--paper-card);border:1px solid var(--rule);border-radius:3px;
   padding:15px;margin-bottom:16px}
@@ -160,6 +186,7 @@ select{background:#fff;border:1px solid var(--rule);border-radius:2px;padding:6p
     <button data-t="char" aria-pressed="false">难字默写</button>
     <button data-t="note" aria-pressed="false">注释</button>
     <button data-t="comp" aria-pressed="false">理解性默写</button>
+    <button data-t="read" aria-pressed="false">看原文</button>
   </div>
 
   <div class="opts">
@@ -270,8 +297,20 @@ const ALLP  = "，。；！？：,.;!?";
 const ENDERS = "。！？!?";
 const hardSet = new Set();
 const CJK = /[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]/;
+const MIN_CHARS = 10;   // \u6587\u7684\u4e00\u9898\u81f3\u5c11\u8fd9\u4e48\u591a\u5b57\uff0c\u77ed\u4e86\u5c31\u548c\u4e0b\u4e00\u53e5\u5e76\u8d77\u6765
 
+const PINYIN = new Map();
 function addHard(s){ for(const ch of s) if(CJK.test(ch)) hardSet.add(ch); }
+/* 难字表可以写成「衿(jīn) 匝(zā) 觥」：带音的是难读字，看答案时把音一并给出 */
+function addHardList(s){
+  for(const m of (s||"").match(/[㐀-鿿豈-﫿](?:\([^)]*\))?/g) || []){
+    const ch = m[0];
+    if(!CJK.test(ch)) continue;
+    hardSet.add(ch);
+    const py = (m.match(/\(([^)]*)\)/) || [])[1];
+    if(py) PINYIN.set(ch, py);
+  }
+}
 function stripMarks(line){ return line.replace(/\{([^}]*)\}/g,(m,i)=>{ addHard(i); return i; }); }
 function stripOnly(line){ return line.replace(/\{([^}]*)\}/g,"$1"); }
 
@@ -295,15 +334,25 @@ function segment(line){
 /* 正文：空行分段 */
 function parseCorpus(raw){
   const pieces = [];
-  let cur = null, para = null;
+  let cur = null, para = null, book = "";
   for(const rawLine of raw.split(/\r?\n/)){
     const line = rawLine.trim();
-    if(line.startsWith("//")) continue;
+    /* 「// 册 必修上」是分组标记，仍旧是注释行，旧解析器照样能忽略 */
+    if(line.startsWith("//")){
+      const m = line.match(/^\/\/\s*册\s+(.+)$/);
+      if(m) book = m[1].trim();
+      continue;
+    }
     if(!line){ para = null; continue; }
     if(line.startsWith("#")){
       const p = line.slice(1).split("|").map(s=>s.trim());
+      /* 第四项是背诵范围：背 / 不背 / 背3（只背第 3 段）。不写就是要背，
+         这样旧的三项写法照样能用。全文都存着，默写只挑要背的段。 */
+      const r = p[3] || "背";
+      const seg = (r.match(/\d+/g) || []).map(Number);
       cur = { title:p[0]||"未命名", author:p[1]||"",
-              type:(p[2]||"诗").includes("文") ? "prose" : "verse", paras:[] };
+              type:(p[2]||"诗").includes("文") ? "prose" : "verse",
+              recite: !r.startsWith("不"), reciteSegs: seg, book, paras:[] };
       pieces.push(cur); para = null;
       continue;
     }
@@ -317,10 +366,13 @@ function parseCorpus(raw){
     p.paras.forEach((lines, pi)=>{
       const qs = buildQuestions(p.type, lines);
       const idx = [];
+      /* 「背诵《师说》的第 1 段」——只有点到的段进默写，其余只供阅读 */
+      const on = p.recite && (!p.reciteSegs.length || p.reciteSegs.includes(pi+1));
       qs.forEach(units=>{ idx.push(p.questions.length);
-        p.questions.push({ units, para: pi }); });
+        p.questions.push({ units, para: pi, recite: on }); });
       p.paraQs.push(idx);
     });
+    p.reciteQs = p.questions.filter(q=>q.recite).length;
   }
   return pieces.filter(p=>p.questions.length);
 }
@@ -339,16 +391,20 @@ function buildQuestions(type, lines){
     }
     if(buf.length) qs.push(buf);
   }
+  if(type === "verse") return qs;
+  /* 文按句号切完，短句单独成题没意思——「求，尔何如？」才五个字。
+     不足十字的并进下一题；末尾那题要是也短，就并回上一题。 */
+  const size = q => q.reduce((n,u)=>n + [...u.body].filter(c=>CJK.test(c)).length, 0);
   const merged = []; let carry = [];
   for(const q of qs){
-    const cur = carry.concat(q); carry = [];
-    const prev = merged[merged.length-1];
-    if(cur.length === 1){
-      if(prev && prev.length < 6) merged[merged.length-1] = prev.concat(cur);
-      else carry = cur;
-    }else merged.push(cur);
+    const cur = carry.concat(q);
+    if(size(cur) < MIN_CHARS){ carry = cur; continue; }
+    merged.push(cur); carry = [];
   }
-  if(carry.length) merged.push(carry);
+  if(carry.length){
+    if(merged.length) merged[merged.length-1] = merged[merged.length-1].concat(carry);
+    else merged.push(carry);
+  }
   return merged;
 }
 
@@ -365,7 +421,7 @@ function parseRows(raw, n){
 }
 
 /* ============ 建库 ============ */
-addHard((D.hardChars||"").replace(/[\s,，、]/g,""));
+addHardList(D.hardChars || "");
 const LIB = parseCorpus(D.corpus || "");
 
 const NOTES = parseRows(D.notes, 5).map(p=>({
@@ -397,6 +453,7 @@ function saveUser(){
 let type = "sentence";
 let chosen = new Set(LIB.map((_,i)=>i));
 let queue = [], pos = 0, shown = false, reviewing = false;
+let readBare = false;   // 看原文时是否藏起注释，只看白文
 let session = { done:0, yes:0, no:0, wrong:[] };
 
 /* ============ 挖空 ============ */
@@ -423,6 +480,7 @@ function itemKey(it){
 }
 
 function buildQueue(){
+  if(type === "read"){ queue = []; pos = 0; render(); return; }
   const order = $("order").value;
   const n = Number($("count").value) || 0;
   const density = $("density").value;
@@ -451,6 +509,7 @@ function buildQueue(){
   }else{
     [...chosen].sort((a,b)=>a-b).forEach(pi=>{
       LIB[pi].questions.forEach((q,qi)=>{
+        if(!q.recite) return;          // 不要求背的段只供阅读，不出默写题
         if(type === "char" && !hasHard(q.units)) return;
         if(filter === "hard" && !hasHard(q.units)) return;
         const it = { kind:type, pieceIdx:pi, qIdx:qi };
@@ -492,15 +551,19 @@ function renderSentence(units, blanks, reveal){
     return '<span class="blank" style="width:'+(Math.max(2,u.body.length)*1.05)+'em">&nbsp;</span>'+esc(u.punct);
   }).join("");
 }
+function hardHTML(ch){
+  const py = PINYIN.get(ch);
+  return '<span class="hardchar">' + esc(ch)
+       + (py ? '<span class="py">'+esc(py)+'</span>' : '') + '</span>';
+}
 function renderChar(units, reveal){
   return units.map(u=>[...u.body].map(ch=>
     !hardSet.has(ch) ? esc(ch)
-    : reveal ? '<span class="hardchar">'+esc(ch)+'</span>' : '<span class="cbox"></span>'
+    : reveal ? hardHTML(ch) : '<span class="cbox"></span>'
   ).join("") + esc(u.punct)).join("");
 }
 function renderHard(text){
-  return [...text].map(ch => hardSet.has(ch)
-    ? '<span class="hardchar">'+esc(ch)+'</span>' : esc(ch)).join("");
+  return [...text].map(ch => hardSet.has(ch) ? hardHTML(ch) : esc(ch)).join("");
 }
 /* 注释题面：把 {} 里的字标红加角标 */
 function renderExample(ex, reveal){
@@ -530,9 +593,91 @@ function glossFor(it){
 }
 
 /* ============ 主渲染 ============ */
+/* ============ 看原文 ============ */
+const plainEx = ex => ex.replace(/\{([^}]*)\}/g, "$1");
+
+/* 注释靠例句回到原文里定位：例句是从正文里取的，一字不差，
+   {} 圈着的就是被注的那个词，角标落在它后面。 */
+function notesInPara(title, text){
+  const mine = NOTES.filter(nt => nt.from === title);
+  /* 课本的长注释里套着小注（〔漫江〕满江。漫，遍布。），入库时各拆了一条，
+     供注释题单独考。看原文要的是课本原样，所以把小注收回去——
+     释义是另一条的一截、例句又相同的，就是那一条拆出来的。 */
+  const sub = new Set();
+  for(const a of mine) for(const b of mine)
+    if(a !== b && plainEx(a.ex) === plainEx(b.ex) && a.word !== b.word
+       && a.def.length > b.def.length && a.def.includes(b.def)) sub.add(b);
+
+  const out = [];
+  for(const nt of mine){
+    if(sub.has(nt)) continue;
+    const at = text.indexOf(plainEx(nt.ex));
+    if(at < 0) continue;
+    const cut = nt.ex.indexOf("{");
+    if(cut < 0) continue;
+    out.push({ nt, at: at + cut + nt.word.length });
+  }
+  out.sort((a,b)=>a.at-b.at);
+  return out;
+}
+
+function renderReading(){
+  const picked = [...chosen].sort((a,b)=>a-b);
+  if(!picked.length) return '<div class="empty">先在上面挑几篇。</div>';
+  const bare = $("bareText") && $("bareText").checked;
+
+  return picked.map(pi=>{
+    const p = LIB[pi];
+    const head = '<div class="readhead"><h3>'+esc(p.title)+'</h3>'
+      + '<span>'+esc(p.author)+'</span>'
+      + '<span class="tag">'+(p.recite
+          ? (p.reciteSegs.length ? "背第"+p.reciteSegs.join("、")+"段" : "要背")
+          : "不要求背")+'</span></div>';
+
+    let seq = 0;                    // 角标整篇连着编，跟课本一样
+    const paras = p.paras.map((lines, idx)=>{
+      const flat = lines.join("");
+      const hits = bare ? [] : notesInPara(p.title, flat);
+      const sup = new Map();
+      hits.forEach(h=> sup.set(h.at, ++seq));
+      let k = 0;
+      // 逐字走一遍，该挂角标的地方挂上，诗还按原来的断行分行
+      const html = lines.map(l=>{
+        let s = "";
+        for(const ch of l){
+          s += esc(ch); k++;
+          if(sup.has(k)) s += '<sup class="anum">'+sup.get(k)+'</sup>';
+        }
+        return s;
+      }).join(p.type === "verse" ? "<br>" : "");
+      const notes = hits.length
+        ? '<ol class="readnotes" start="'+(seq-hits.length+1)+'">' + hits.map(h=>
+          '<li><b>'+esc(h.nt.word)+'</b>'
+          + (PINYIN.get(h.nt.word) ? '<span class="py">'+esc(PINYIN.get(h.nt.word))+'</span>' : '')
+          + '　' + esc(h.nt.def)
+          + (h.nt.src !== "课本" ? '<span class="tag">'+esc(h.nt.src)+'</span>' : '')
+          + '</li>').join("") + '</ol>' : "";
+      const onSeg = p.recite && (!p.reciteSegs.length || p.reciteSegs.includes(idx+1));
+      return '<div class="readpara'+(onSeg ? " toRecite" : "")+'">'
+           + '<div class="readtext '+p.type+'">'+html+'</div>' + notes + '</div>';
+    }).join("");
+
+    return '<section class="readpiece">'+head+paras+'</section>';
+  }).join("");
+}
+
 function render(){
   const card = $("card");
   syncFields();
+
+  if(type === "read"){
+    card.innerHTML = '<div class="readbar"><label><input type="checkbox" id="bareText"'
+      + (readBare ? " checked" : "") + '> 只看白文，藏起注释</label></div>'
+      + '<div class="readpage">' + renderReading() + '</div>';
+    const cb = $("bareText");
+    if(cb) cb.onchange = ()=>{ readBare = cb.checked; render(); };
+    updateTally(); return;
+  }
 
   if(pos >= queue.length){
     if(!queue.length){ card.innerHTML = '<div class="empty">'+emptyReason()+'</div>'; updateTally(); return; }
@@ -672,20 +817,43 @@ function updateTally(){
 
 /* ============ 篇目与参数 ============ */
 function buildChips(){
-  $("chips").innerHTML = LIB.map((p,i)=>
-    '<button class="chip" data-i="'+i+'" aria-pressed="'+chosen.has(i)+'">'+esc(p.title)+'</button>').join("");
+  const books = [];
+  LIB.forEach((p,i)=>{
+    let g = books.find(b=>b.name === p.book);
+    if(!g){ g = { name:p.book, idx:[] }; books.push(g); }
+    g.idx.push(i);
+  });
+  $("chips").innerHTML = books.map(g=>
+    '<div class="bookrow"><button class="bookname" data-b="'+esc(g.name)+'">'
+    + esc(g.name || "篇目") + '</button>'
+    + g.idx.map(i=>'<button class="chip'+(LIB[i].recite?"":" norecite")+'" data-i="'+i
+        + '" aria-pressed="'+chosen.has(i)+'">'+esc(LIB[i].title)+'</button>').join("")
+    + '</div>').join("");
+  $("chips").querySelectorAll(".bookname").forEach(b=>{
+    b.onclick = ()=>{                       // 点册名：整册全选，再点一下全不选
+      const g = books.find(x=>x.name === b.dataset.b);
+      const allOn = g.idx.every(i=>chosen.has(i));
+      g.idx.forEach(i=> allOn ? chosen.delete(i) : chosen.add(i));
+      buildChips(); buildQueue();
+    };
+  });
   $("chips").querySelectorAll(".chip").forEach(b=>{
     b.onclick = ()=>{ const i = Number(b.dataset.i);
       if(chosen.has(i)) chosen.delete(i); else chosen.add(i);
       buildChips(); buildQueue(); };
   });
-  const tq = [...chosen].reduce((s,i)=>s+LIB[i].questions.length,0);
-  $("libInfo").textContent = LIB.length+" 篇 · "+tq+" 题 · 难字 "+hardSet.size
-    + " · 注释 " + NOTES.length;
+  const tq = [...chosen].reduce((s,i)=>s+LIB[i].reciteQs,0);
+  const nb = LIB.filter(p=>p.recite).length;
+  $("libInfo").textContent = LIB.length+" 篇（要背 "+nb+"） · "+tq+" 题 · 难字 "
+    + hardSet.size + " · 注释 " + NOTES.length;
 }
 function syncFields(){
+  const reading = type === "read";
   $("densityField").style.display = type === "sentence" ? "" : "none";
-  $("filterField").style.display  = type === "char" ? "none" : "";
+  $("filterField").style.display  = (type === "char" || reading) ? "none" : "";
+  for(const id of ["order", "count"])
+    $(id).closest(".field").style.display = reading ? "none" : "";
+  $("restart").style.display = reading ? "none" : "";
 }
 
 $("types").querySelectorAll("button").forEach(b=>{
