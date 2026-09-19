@@ -201,14 +201,24 @@ def paragraphs(lines, genre):
         # 版心随单双页左右挪，一篇里各页的左边界并不一样，所以基准线要
         # 一页一算。段首是正正好好缩进两格；缩得更多的是在绕开插图，
         # 那还是同一段里的行。
-        base = {}
+        # 哪些横坐标是「段首缩进」。不取一条基准线，取一组：一页上可能有
+        # 两种版心——《论语》十二章那页右边嵌着插图，前十二行缩在里面排，
+        # 最后两行才用整行的宽度，两套左边沿差着八十多点。只认一条线的话，
+        # 「子曰：“譬如为山」这一段就接到上一段尾巴上，十二章成了十一章。
+        # 判据是成对出现：某个起笔正好比另一个起笔靠右两格，它就是段首。
+        starts = {}
         for l in lines:
-            base.setdefault(l["page"], []).append(l["x0"])
-        for pno, xs in base.items():
-            # 取左边界，不取众数：《侍坐》全篇都是短对话，段首行比续行还多，
-            # 按众数算，基准线会落到缩进那一列上去，整篇就并成一段了。
-            common = [v for v in set(xs) if sum(1 for w in xs if abs(w - v) < 1.5) >= 2]
-            base[pno] = min(common) if common else min(xs)
+            starts.setdefault(l["page"], []).append(l["x0"])
+        for pno, xs in starts.items():
+            lv = sorted({round(v, 1) for v in xs})
+            # 缩进量不总是整两格：行首是个引号的话，课本排得窄一点，
+            # 《侍坐》的「“赤！尔何如？”」只缩十八点。放宽到十四至二十八点。
+            heads = [v for v in lv if any(14 < v - w < 28 for w in lv)]
+            if not heads:      # 整页都是续行或者都是段首，退回老办法
+                common = [v for v in set(xs)
+                          if sum(1 for w in xs if abs(w - v) < 1.5) >= 2]
+                heads = [(min(common) if common else min(xs)) + 24]
+            starts[pno] = heads
         edge = {}
         for l in lines:
             edge.setdefault(l["page"], []).append(l["x1"])
@@ -218,12 +228,12 @@ def paragraphs(lines, genre):
             if l.get("gapBefore") and cur:
                 paras.append(cur)
                 cur = []
-            indent = l["x0"] - base[l["page"]]
             # 段首缩进两格，可上一行必须是段末（排不满的短行）。
             # 排得满满当当的一行后面不会接段首——那多半是这一行的头一个字
             # 是画上去的（《庖丁解牛》的「軱」），让整行看着像缩进了。
+            head = any(abs(l["x0"] - v) < 4 for v in starts[l["page"]])
             ended = cur and cur[-1]["x1"] < edge[cur[-1]["page"]] - 14
-            if cur and abs(indent - 24) < 8 and ended:
+            if cur and head and ended:
                 paras.append(cur)
                 cur = []
             cur.append(l)

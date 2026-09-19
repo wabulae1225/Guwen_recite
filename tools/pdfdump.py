@@ -309,15 +309,18 @@ def split_captions(lines):
     cols = sorted({l["col"] for l in lines})
     for col in cols:
         group = [l for l in lines if l["col"] == col]
-        left = min(l["x0"] for l in group)
+        marked = [l for l in group if "⟦" in l["text"] or CIRCLED.match(l["text"])]
+        # 本栏第一条注释的起笔。续行挂在它下面，只多缩三四个点；
+        # 图注跟它对不上——《赤壁赋》那条右对齐，差着一百多点，
+        # 《与妻书》那条在左边，差着五十点。整栏一条注释也没有的
+        # （《念奴娇》的「赤壁图傅抱石作」独占一栏），那就整栏都是图注。
+        ref = marked[0]["x0"] if marked else None
         started = False
         for line in group:
-            if "⟦" in line["text"] or CIRCLED.match(line["text"]):
+            if line in marked:
                 started = True
-            # 后面几栏栏顶那几行，多半是上一栏末条注释排不下续过来的，得接回去；
-            # 但《赤壁赋》的「赤壁图　［金］武元直作」也排在第二栏顶上。
-            # 分得开：续下来的行左边齐着本栏的沿，图注是右对齐的，缩在右边老远。
-            cap = not started and (col == cols[0] or line["x0"] > left + 20)
+            cap = not started and (col == cols[0] or ref is None
+                                   or abs(line["x0"] - ref) > 8)
             (captions if cap else notes).append(line)
     return notes, captions
 
