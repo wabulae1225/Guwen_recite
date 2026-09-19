@@ -33,8 +33,15 @@ CJK = re.compile(r"[一-鿿]")
 # 四声的符号要齐全——漏了第一声，「jīn」就认不出来；ɡ 是国际音标的 g，课本混用。
 VOWEL = "aeiouüāáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ"
 PINYIN = re.compile(r"([一-鿿]+)（([a-zü" + VOWEL + r"ńňǹɡ\s]+)）")
+# 音节末尾的 r 只能是儿化，后面跟着元音的那个 r 是下一个音节的声母：
+# 「葳蕤（wēiruí）」不加这条会切成 wēir / uí，两个字的注音都错。
 SYLLABLE = re.compile(r"(?:[zcs]h|[bpmfdtnlgkhjqxrwyzcsɡ])?[" + VOWEL +
-                      r"]+(?:n[gɡ]?|r)?")
+                      r"]+(?:n[gɡ]?|r(?![" + VOWEL + r"]))?")
+
+
+def sound(py):
+    """课本的注音里混着国际音标的 ɡ（U+0261），统一成普通的 g。"""
+    return py.replace("ɡ", "g")
 COMMON1 = os.path.join(HERE, "tools", "data", "常用字-一级3500.txt")
 
 
@@ -462,7 +469,7 @@ def build(book, freq, edits, COMMON):
                 syl = SYLLABLE.findall(py.strip())
                 n = min(len(syl), len(word))
                 for ch, s in zip(word[-n:], syl[-n:]):
-                    sounds.setdefault(ch, s)
+                    sounds.setdefault(ch, sound(s))
 
         plain = "".join(MARK.sub("", l) for para in pc["paras"] for l in para)
         # 不在 3500 常用字里的就算难字；课本给它注过音的，把音也带上。
@@ -594,7 +601,7 @@ def main():
                         syl = SYLLABLE.findall(py.strip())
                         k = min(len(syl), len(word))
                         for ch, sy in zip(word[-k:], syl[-k:]):
-                            sounds.setdefault(ch, sy)
+                            sounds.setdefault(ch, sound(sy))
                 plain = "".join(MARK.sub("", l) for para in pc["paras"] for l in para)
                 auto[pc["title"]] = {ch for ch in set(CJK.findall(plain))
                                      if ch not in COMMON}

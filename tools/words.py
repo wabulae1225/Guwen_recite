@@ -42,7 +42,7 @@ def corpus_text():
     for f in glob.glob(os.path.join(B.RAW, "*.json")):
         d = json.load(open(f, encoding="utf-8"))
         for p in d["pages"]:
-            for grp in ("body", "notes", "hints"):
+            for grp in ("body", "notes", "hints", "captions"):
                 for l in p[grp]:
                     t = l["text"] if isinstance(l, dict) else l
                     out.append(B.MARK.sub("", t))
@@ -174,8 +174,10 @@ def main():
         f.write("# 词 \t 拼音 \t 题型 \t 来源 \t 出处 \t 课本里出现次数\n")
         for w in order:
             py, src, where = rows[w]
+            # 课本注音里混着国际音标的 ɡ（U+0261），统一成普通的 g
             f.write("%s\t%s\t%s\t%s\t%s\t%d\n"
-                    % (w, py, kind(w, src), src, where, full.count(w)))
+                    % (w, py.replace("ɡ", "g"), kind(w, src), src, where,
+                       full.count(w)))
     tally = collections.Counter(v[1] for v in rows.values())
     print("词语 %d 条 → %s" % (len(rows), os.path.relpath(OUT, HERE)))
     print("  " + "　".join("%s %d" % kv for kv in tally.most_common()))
