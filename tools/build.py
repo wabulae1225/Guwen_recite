@@ -159,6 +159,71 @@ def readpiece(path):
             "recite": recite, "paras": paras, "notes": notes}
 
 
+BRACED = re.compile(r"\{([^}]*)\}")
+HARDTABLE = os.path.join(HERE, "tools", "hardchars.tsv")
+
+
+def harvest(path):
+    """把已经生成好的 data.js 里手圈的大括号扒下来。
+
+    难字表不该让人去啃一张字表——在原文上圈字才是顺手的，跟在纸书上圈错字
+    一个道理。所以 data.js 的 corpus 就是权威：你在哪儿加了括号、在哪儿删了，
+    重跑之前先在这儿读出来，生成时原样带回去，不会被冲掉。"""
+    if not os.path.exists(path):
+        return None
+    text = open(path, encoding="utf-8").read()
+    m = re.search(r"corpus:\s*`(.*?)`,\n", text, re.S)
+    if not m:
+        return None
+    out, cur = {}, None
+    for line in m.group(1).split("\n"):
+        line = line.strip()
+        if line.startswith("#"):
+            cur = line[1:].split("|")[0].strip()
+            out.setdefault(cur, set())
+        elif cur and line and not line.startswith("//"):
+            for g in BRACED.findall(line):
+                out[cur].update(ch for ch in g if CJK.match(ch))
+    return out
+
+
+def load_edits():
+    """手圈记录的备份。data.js 在就以它为准，不在（比如刚 clone 下来）就用这张表。"""
+    edits = {}
+    if not os.path.exists(HARDTABLE):
+        return edits
+    with open(HARDTABLE, encoding="utf-8") as f:
+        for line in f:
+            line = line.split("#")[0].rstrip()
+            cols = [c.strip() for c in line.split("\t") if c.strip()]
+            if len(cols) >= 3 and cols[0] in ("加", "删"):
+                edits.setdefault(cols[1], {"加": set(), "删": set()})[cols[0]].add(cols[2])
+    return edits
+
+
+def save_edits(edits):
+    lines = [
+        "# 手圈的难字（这张表由 tools/build.py 自动维护，一般不用手改）",
+        "#",
+        "# 难字不用在字表里一个个找——直接在 data.js 的 corpus 里给字加大括号就行，",
+        "# 像在纸书上圈错字一样；想去掉就把括号删了。重跑 build.py 会先把你圈的读出来，",
+        "# 记在这张表里，再原样带回生成结果，不会被冲掉。",
+        "#",
+        "# 所以 data.js 是权威，这张表是备份和账本：能一眼看出你加了哪些字、",
+        "# 又把哪些自动判定的字去掉了。只有 data.js 不在时（比如刚 clone 下来），",
+        "# 才反过来拿这张表来还原。",
+        "#",
+        "# 加/删 \t 篇名 \t 字",
+        "",
+    ]
+    for title in sorted(edits):
+        for kind in ("加", "删"):
+            for ch in sorted(edits[title][kind]):
+                lines.append("%s\t%s\t%s" % (kind, title, ch))
+    with open(HARDTABLE, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
+
+
 def bookfreq():
     """全书字频。常用字动辄成千上万次，生僻字个位数，用来认难写字。"""
     cnt = collections.Counter()
@@ -257,7 +322,7 @@ def depinyin(s):
     return re.sub(r"（[^）]*）", "", s)
 
 
-def build(book, freq):
+def build(book, freq, edits):
     pieces = []
     for path in sorted(glob.glob(os.path.join(SRC, book + "-*.md"))):
         pieces.append(readpiece(path))
@@ -280,6 +345,9 @@ def build(book, freq):
         rare = {ch for ch in set(CJK.findall(plain))
                 if freq.get(ch, 0) <= 3
                 or (ch in sounds and freq.get(ch, 0) <= COMMON)}
+        # 手圈的说了算：加过的加上，删过的去掉
+        mine = edits.get(pc["title"], {"加": set(), "删": set()})
+        rare = (rare | mine["加"]) - mine["删"]
         for ch in rare:
             if ch in sounds:
                 hard.setdefault(ch, sounds[ch])
@@ -377,9 +445,41 @@ def build(book, freq):
 def main():
     freq = bookfreq()
     books = sys.argv[1:] or BOOKS
+
+    # 先把上一版 data.js 里手圈的括号扒下来，免得重跑一冲就没了。
+    # data.js 是权威；它不在（刚 clone 下来）才退回去读备份表。
+    edits = load_edits()
+    dst_js = os.path.join(HERE, "data.js")
+    seen = harvest(dst_js)
+    if seen is not None:
+        auto = {}
+        for b in BOOKS:
+            for path in sorted(glob.glob(os.path.join(SRC, b + "-*.md"))):
+                pc = readpiece(path)
+                sounds = {}
+                for _, body in pc["notes"]:
+                    for word, py in PINYIN.findall(body):
+                        syl = SYLLABLE.findall(py.strip())
+                        k = min(len(syl), len(word))
+                        for ch, sy in zip(word[-k:], syl[-k:]):
+                            sounds.setdefault(ch, sy)
+                plain = "".join(MARK.sub("", l) for para in pc["paras"] for l in para)
+                auto[pc["title"]] = {ch for ch in set(CJK.findall(plain))
+                                     if freq.get(ch, 0) <= 3
+                                     or (ch in sounds and freq.get(ch, 0) <= COMMON)}
+        edits = {}
+        for title, circled in seen.items():
+            a = auto.get(title)
+            if a is None:
+                continue
+            add, drop = circled - a, a - circled
+            if add or drop:
+                edits[title] = {"加": add, "删": drop}
+        save_edits(edits)
+
     allc, allh, alln, allm = [], {}, [], []
     for b in books:
-        c, h, n, m = build(b, freq)
+        c, h, n, m = build(b, freq, edits)
         allm += m
         allc += ["// 册 %s" % b] + c
         for k, v in h.items():
