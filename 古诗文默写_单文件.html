@@ -4187,17 +4187,38 @@ select{background:#fff;border:1px solid var(--rule);border-radius:2px;padding:6p
 .linkbtn{background:none;border:none;color:var(--ink-soft);cursor:pointer;
   text-decoration:underline;text-underline-offset:3px;font-size:13px;font-family:inherit;padding:5px 0}
 .linkbtn:hover{color:var(--cinnabar)}
-.picker{margin-top:12px;border-top:1px solid var(--rule);padding-top:11px}
-.picker .head{display:flex;align-items:center;gap:12px;margin-bottom:8px}
-.picker .head span{font-size:12px;color:var(--ink-soft)}
-.chips{display:flex;flex-direction:column;gap:9px}
-.bookrow{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
-.bookname{background:none;border:none;cursor:pointer;font-size:12px;color:var(--ink-faint);
-  font-family:inherit;padding:4px 6px 4px 0;white-space:nowrap;min-width:52px;text-align:left}
-.bookname:hover{color:var(--cinnabar)}
-.chip{border:1px solid var(--rule);background:#fff;border-radius:2px;padding:5px 11px;
-  cursor:pointer;font-family:var(--serif);font-size:14px;color:var(--ink-soft)}
-.chip[aria-pressed="true"]{background:var(--ink);color:var(--paper-card);border-color:var(--ink)}
+.picker{margin-top:12px;border-top:1px solid var(--rule);padding-top:11px;
+  display:flex;align-items:center;gap:11px}
+.pickbtn{padding:7px 15px;font-size:13px}
+.picksum{font-size:13px;color:var(--ink-soft)}
+
+/* 篇目浮层：六十多篇平铺太占地方，收进来点开再选 */
+.overlay{position:fixed;inset:0;background:rgba(35,36,31,.45);z-index:50;
+  display:flex;align-items:center;justify-content:center;padding:16px}
+.overlay[hidden]{display:none}   /* display:flex 会盖掉 hidden，得明写一条 */
+.sheet{background:var(--paper-card);border:1px solid var(--rule);border-radius:3px;
+  width:100%;max-width:560px;max-height:86vh;display:flex;flex-direction:column}
+.sheethead{display:flex;flex-wrap:wrap;gap:9px;align-items:center;padding:13px 15px;
+  border-bottom:1px solid var(--rule)}
+.sheethead b{font-family:var(--serif);font-size:15px;letter-spacing:.06em}
+.sheethead input{flex:1;min-width:110px;background:#fff;border:1px solid var(--rule);
+  border-radius:2px;padding:6px 9px;font-family:inherit;font-size:14px;color:var(--ink)}
+.sheethead .btn{padding:6px 15px;font-size:13px;margin-left:auto}
+.sheetbody{overflow-y:auto;padding:6px 0 12px;-webkit-overflow-scrolling:touch}
+.bookhead{display:flex;align-items:center;gap:10px;padding:11px 15px 5px;
+  position:sticky;top:0;background:var(--paper-card);border-bottom:1px solid var(--rule)}
+.bookhead span{font-size:12px;color:var(--ink-faint);letter-spacing:.08em}
+.bookhead button{background:none;border:none;cursor:pointer;font-size:12px;
+  color:var(--ink-soft);font-family:inherit;text-decoration:underline;
+  text-underline-offset:3px;padding:2px 0}
+.bookhead button:hover{color:var(--cinnabar)}
+.pick{display:flex;align-items:center;gap:10px;padding:8px 15px;cursor:pointer;
+  font-family:var(--serif);font-size:15px;color:var(--ink)}
+.pick:hover{background:rgba(158,43,37,.06)}
+.pick input{width:16px;height:16px;flex:none;accent-color:var(--cinnabar);margin:0}
+.pick .why{margin-left:auto;font-family:var(--sans);font-size:11px;color:var(--ink-faint);
+  white-space:nowrap}
+.pick .why.on{color:var(--cinnabar)}
 
 .card{background:var(--paper-card);border:1px solid var(--rule);border-radius:3px;
   padding:24px 26px 22px;min-height:258px;display:flex;flex-direction:column}
@@ -4222,6 +4243,13 @@ select{background:#fff;border:1px solid var(--rule);border-radius:2px;padding:6p
 .cbox{display:inline-block;width:1em;height:1em;border:1px solid var(--ink);
   vertical-align:-.12em;margin:0 .08em}
 .filled{color:var(--cinnabar)}
+.filled.tick{cursor:pointer;border-bottom:1px dashed var(--cinnabar-soft)}
+.filled.tick:hover{background:rgba(158,43,37,.08)}
+.filled.weak{background:var(--cinnabar);color:var(--paper-card);border-bottom:none;
+  border-radius:2px;padding:0 2px}
+.tickbar{margin-top:16px;padding-top:12px;border-top:1px dashed var(--rule);
+  font-size:13px;color:var(--ink-soft);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.tickbar b{font-weight:600;color:var(--cinnabar)}
 .hardchar{color:var(--cinnabar);border-bottom:1px dotted var(--cinnabar-soft)}
 .target{color:var(--cinnabar);font-weight:600}
 .target sup{font-size:.55em;vertical-align:super;margin-left:1px}
@@ -4293,10 +4321,33 @@ select{background:#fff;border:1px solid var(--rule);border-radius:2px;padding:6p
 .panel{background:var(--paper-card);border:1px solid var(--rule);border-radius:3px;
   padding:15px;margin-bottom:16px}
 .panel h2{font-size:14px;margin:0 0 7px;font-weight:600}
+.panel .subhead{font-size:13px;font-weight:600;color:var(--ink-soft);
+  margin:20px 0 8px;padding-top:13px;border-top:1px solid var(--rule)}
+.mylist{margin:0 0 4px;padding:0;list-style:none;max-height:260px;overflow-y:auto}
+.mylist li{display:flex;align-items:flex-start;gap:9px;padding:7px 0;
+  border-bottom:1px solid var(--rule)}
+.mylist .who{font-size:11px;color:var(--ink-faint);white-space:nowrap;
+  flex:none;width:6.4em;overflow:hidden;text-overflow:ellipsis;padding-top:3px}
+.mylist .what{font-family:var(--serif);font-size:14px;line-height:1.75;flex:1;word-break:break-all}
+.mylist .n{font-size:11px;color:var(--cinnabar);white-space:nowrap;flex:none;padding-top:3px}
+.mylist .drop{background:none;border:none;cursor:pointer;color:var(--ink-faint);
+  font-size:15px;line-height:1;padding:2px 4px;flex:none}
+.mylist .drop:hover{color:var(--cinnabar)}
+.myempty{font-size:13px;color:var(--ink-faint);padding:6px 0 10px}
 .panel p{font-size:13px;color:var(--ink-soft);margin:0 0 9px;line-height:1.8}
 .panel textarea{width:100%;height:130px;background:#fff;border:1px solid var(--rule);
   border-radius:2px;padding:9px;font-family:ui-monospace,Menlo,Consolas,monospace;
   font-size:12px;line-height:1.65;resize:vertical}
+/* 窄屏：标题别被右边那行统计挤成两行；浮层的搜索框自己占一行，
+   「完成」才好按。 */
+@media (max-width:460px){
+  header{flex-wrap:wrap}
+  header .sub{width:100%;margin-left:0;text-align:left;margin-top:3px}
+  .sheethead input{order:10;flex-basis:100%;min-width:0}
+  .wrap{padding:18px 14px 60px}
+  .card{padding:20px 16px 18px}
+}
+
 .fatal{background:var(--paper-card);border:1px solid var(--cinnabar);border-radius:3px;
   padding:20px;line-height:2}
 .fatal b{color:var(--cinnabar)}
@@ -4371,12 +4422,22 @@ select{background:#fff;border:1px solid var(--rule);border-radius:2px;padding:6p
       <button class="linkbtn" id="toggleData">我的数据</button>
     </div>
     <div class="picker">
-      <div class="head">
-        <span>篇目</span>
+      <button class="btn pickbtn" id="openPicker">篇目</button>
+      <span class="picksum" id="pickSum"></span>
+    </div>
+  </div>
+
+  <div class="overlay" id="pickerBox" hidden>
+    <div class="sheet">
+      <div class="sheethead">
+        <b>选篇目</b>
+        <input id="pickSearch" placeholder="搜篇名，如 六国" autocomplete="off">
         <button class="linkbtn" id="selAll">全选</button>
         <button class="linkbtn" id="selNone">全不选</button>
+        <button class="linkbtn" id="selRecite">只要背诵的</button>
+        <button class="btn" id="closePicker">完成</button>
       </div>
-      <div class="chips" id="chips"></div>
+      <div class="sheetbody" id="chips"></div>
     </div>
   </div>
 
@@ -4385,6 +4446,8 @@ select{background:#fff;border:1px solid var(--rule);border-radius:2px;padding:6p
     <p>标记和错题次数平时存在浏览器里。想换设备或者怕丢，点「下载 user.js」，
        把下载到的文件替换掉目录里那个旧的 user.js 即可。
        没法下载的话，复制下面框里的全部内容，手动存成 user.js。</p>
+    <div id="myList"></div>
+    <h3 class="subhead">存档</h3>
     <textarea id="dataText" spellcheck="false"></textarea>
     <div class="actions" style="margin-top:9px">
       <button class="btn" id="doDownload">下载 user.js</button>
@@ -4582,12 +4645,17 @@ const keyOf  = (a,b) => a + "::" + b;
 /* ============ 用户数据 ============ */
 let marks = new Set(U.marks || []);
 let wrongCount = Object.assign({}, U.wrong || {});
+/* weak：这一题具体是哪几处不会（以逗号分号切出来的小句为单位）。
+   答错时没点具体位置，就当整句都不会，这里不留记录。 */
+let weak = Object.assign({}, U.weak || {});
 try{ const m = store.get("marks"); if(m) JSON.parse(m).forEach(x=>marks.add(x)); }catch(e){}
 try{ const w = store.get("wrong"); if(w){ const o = JSON.parse(w);
       for(const k in o) wrongCount[k] = Math.max(wrongCount[k]||0, o[k]); } }catch(e){}
+try{ const k = store.get("weak"); if(k) Object.assign(weak, JSON.parse(k)); }catch(e){}
 function saveUser(){
   store.set("marks", JSON.stringify([...marks]));
   store.set("wrong", JSON.stringify(wrongCount));
+  store.set("weak", JSON.stringify(weak));
 }
 
 /* ============ 状态 ============ */
@@ -4663,10 +4731,32 @@ function buildQueue(){
   if(order === "shuffle") shuffle(items); 
   if(n > 0) items = items.slice(0, n);
   for(const it of items)
-    if(it.kind === "sentence")
-      it.blanks = pickBlanks(LIB[it.pieceIdx].questions[it.qIdx].units.length, density);
+    if(it.kind === "sentence"){
+      const n = LIB[it.pieceIdx].questions[it.qIdx].units.length;
+      const mine = weak[itemKey(it)];
+      // 上次挑过「就这几处记不住」，这次就只挖这几处，别再满题挖
+      it.blanks = (filter === "wrong" && mine && mine.length)
+        ? mine.filter(i=>i < n) : pickBlanks(n, density);
+    }
 
   queue = items; pos = 0; shown = false; reviewing = false;
+  session = { done:0, yes:0, no:0, wrong:[] };
+  render();
+}
+
+/* 互补默写：上一轮挖过的地方这轮变提示，上一轮给的提示这轮挖空。
+   两轮合起来，选中的句子每个字都默过一遍。 */
+function complement(){
+  const src = queue.filter(it=>it.kind === "sentence" && it.blanks);
+  if(!src.length) return;
+  queue = src.map(w=>{
+    const n = LIB[w.pieceIdx].questions[w.qIdx].units.length;
+    const c = Object.assign({}, w);
+    c.picked = null;
+    c.blanks = [...Array(n).keys()].filter(i=>!w.blanks.includes(i));
+    return c;
+  }).filter(c=>c.blanks.length);
+  pos = 0; shown = false; reviewing = false;
   session = { done:0, yes:0, no:0, wrong:[] };
   render();
 }
@@ -4685,10 +4775,14 @@ function retryWrong(){
 }
 
 /* ============ 渲染零件 ============ */
-function renderSentence(units, blanks, reveal){
+function renderSentence(units, blanks, reveal, picked){
   return units.map((u,i)=>{
     if(!blanks.includes(i)) return esc(u.body)+esc(u.punct);
-    if(reveal) return '<span class="filled">'+esc(u.body)+'</span>'+esc(u.punct);
+    if(reveal){
+      const on = picked && picked.has(i);
+      return '<span class="filled'+(picked ? " tick" : "")+(on ? " weak" : "")
+           + '" data-u="'+i+'">'+esc(u.body)+'</span>'+esc(u.punct);
+    }
     return '<span class="blank" style="width:'+(Math.max(2,u.body.length)*1.05)+'em">&nbsp;</span>'+esc(u.punct);
   }).join("");
 }
@@ -4826,9 +4920,14 @@ function render(){
     card.innerHTML =
       '<div class="done">这一轮做完了。共 '+session.done+' 题，记得 '+session.yes+' 题，正确率 '+rate+'%。</div>'+
       '<div class="actions"><button class="btn" id="again">再来一轮</button>'+
+      (queue.some(it=>it.kind === "sentence" && it.blanks)
+        ? '<button class="btn" id="comp2">互补再默一遍</button>' : '')+
       (session.wrong.length ? '<button class="btn no" id="onlyWrong">只练不记得的 '+session.wrong.length+' 题</button>' : '')+
-      '</div>';
+      '</div>'+
+      '<div class="hint">「互补」是把这一轮挖过的地方变成提示、原来的提示挖成空，'
+      + '两轮合起来每个字都默一遍。</div>';
     $("again").onclick = buildQueue;
+    if($("comp2")) $("comp2").onclick = complement;
     if($("onlyWrong")) $("onlyWrong").onclick = retryWrong;
     updateTally(); return;
   }
@@ -4857,10 +4956,19 @@ function render(){
   }else{
     const p = LIB[it.pieceIdx], q = p.questions[it.qIdx];
     title = p.title; author = p.author; cls = p.type === "verse" ? "verse" : "prose";
+    const tick = shown && it.kind === "sentence" && !reviewing;
     body = it.kind === "char" ? renderChar(q.units, shown)
-                              : renderSentence(q.units, it.blanks, shown);
+                              : renderSentence(q.units, it.blanks, shown,
+                                               tick ? (it.picked || new Set()) : null);
+    if(tick){
+      const n = (it.picked || new Set()).size;
+      revealHTML = '<div class="tickbar">点上面标红的地方，挑出记不住的那几处'
+        + '<button class="linkbtn" id="tickAll">'
+        + (n === it.blanks.length ? "全不选" : "全选") + '</button>'
+        + (n ? '<b>已挑 '+n+' 处</b>' : '<span>不挑就是整句都不会</span>') + '</div>';
+    }
     if(shown){
-      revealHTML = '<div class="reveal"><h4>本段原文</h4>'+renderPara(it)+'</div>';
+      revealHTML += '<div class="reveal"><h4>本段原文</h4>'+renderPara(it)+'</div>';
       if(reviewing) revealHTML += '<div class="reveal"><h4>译文与解析</h4>'+glossFor(it)+'</div>';
     }
   }
@@ -4896,6 +5004,21 @@ function render(){
   if(reviewing) $("cont").onclick = next;
   else if(shown){ $("yes").onclick = ()=>grade(true); $("no").onclick = ()=>grade(false); }
   else $("show").onclick = reveal;
+
+  // 挑出记不住的那几处：点一下标红，再点取消
+  card.querySelectorAll(".filled.tick").forEach(el=>{
+    el.onclick = ()=>{
+      it.picked = it.picked || new Set();
+      const i = Number(el.dataset.u);
+      if(it.picked.has(i)) it.picked.delete(i); else it.picked.add(i);
+      render();
+    };
+  });
+  if($("tickAll")) $("tickAll").onclick = ()=>{
+    const all = (it.picked || new Set()).size === it.blanks.length;
+    it.picked = all ? new Set() : new Set(it.blanks);
+    render();
+  };
   updateTally();
 }
 
@@ -4923,6 +5046,13 @@ function grade(ok){
   session.wrong.push(Object.assign({}, it));
   const k = itemKey(it);
   wrongCount[k] = (wrongCount[k]||0) + 1;
+  // 挑了具体哪几处就记下来，以后「只练错过的」只挖这几处；
+  // 一处没挑就是整句都不会，那就把旧记录清掉，回到整题重来。
+  if(it.kind === "sentence"){
+    const sel = [...(it.picked || new Set())].sort((a,b)=>a-b);
+    if(sel.length && sel.length < it.blanks.length) weak[k] = sel;
+    else delete weak[k];
+  }
   saveUser();
   if(glossFor(it)){ reviewing = true; render(); return; }  // 答错才给译文解析
   next();
@@ -4957,37 +5087,67 @@ function updateTally(){
 }
 
 /* ============ 篇目与参数 ============ */
+function reciteLabel(p){
+  if(!p.recite) return "不背";
+  return p.reciteSegs.length ? "部分背诵" : "背诵";
+}
+
 function buildChips(){
+  const kw = ($("pickSearch") ? $("pickSearch").value : "").trim();
   const books = [];
   LIB.forEach((p,i)=>{
+    if(kw && !p.title.includes(kw) && !p.author.includes(kw)) return;
     let g = books.find(b=>b.name === p.book);
     if(!g){ g = { name:p.book, idx:[] }; books.push(g); }
     g.idx.push(i);
   });
-  $("chips").innerHTML = books.map(g=>
-    '<div class="bookrow"><button class="bookname" data-b="'+esc(g.name)+'">'
-    + esc(g.name || "篇目") + '</button>'
-    + g.idx.map(i=>'<button class="chip'+(LIB[i].recite?"":" norecite")+'" data-i="'+i
-        + '" aria-pressed="'+chosen.has(i)+'">'+esc(LIB[i].title)+'</button>').join("")
-    + '</div>').join("");
-  $("chips").querySelectorAll(".bookname").forEach(b=>{
-    b.onclick = ()=>{                       // 点册名：整册全选，再点一下全不选
-      const g = books.find(x=>x.name === b.dataset.b);
-      const allOn = g.idx.every(i=>chosen.has(i));
-      g.idx.forEach(i=> allOn ? chosen.delete(i) : chosen.add(i));
-      buildChips(); buildQueue();
+
+  $("chips").innerHTML = books.length ? books.map(g=>
+    '<div class="bookhead"><span>'+esc(g.name || "篇目")+'</span>'
+    + '<button data-b="'+esc(g.name)+'" data-on="1">整册全选</button>'
+    + '<button data-b="'+esc(g.name)+'" data-on="0">全不选</button></div>'
+    + g.idx.map(i=>{
+        const p = LIB[i];
+        return '<label class="pick"><input type="checkbox" data-i="'+i+'"'
+          + (chosen.has(i) ? " checked" : "") + '>'
+          + '<span>'+esc(p.title)+'</span>'
+          + '<span class="why'+(p.recite?" on":"")+'">'+reciteLabel(p)+'</span></label>';
+      }).join("")
+  ).join("") : '<div class="pick" style="color:var(--ink-faint)">没有匹配的篇目。</div>';
+
+  $("chips").querySelectorAll("input[type=checkbox]").forEach(b=>{
+    b.onchange = ()=>{
+      const i = Number(b.dataset.i);
+      if(b.checked) chosen.add(i); else chosen.delete(i);
+      pickSummary(); buildQueue();
     };
   });
-  $("chips").querySelectorAll(".chip").forEach(b=>{
-    b.onclick = ()=>{ const i = Number(b.dataset.i);
-      if(chosen.has(i)) chosen.delete(i); else chosen.add(i);
-      buildChips(); buildQueue(); };
+  $("chips").querySelectorAll(".bookhead button").forEach(b=>{
+    b.onclick = ()=>{
+      const on = b.dataset.on === "1";
+      LIB.forEach((p,i)=>{ if(p.book === b.dataset.b) on ? chosen.add(i) : chosen.delete(i); });
+      buildChips(); pickSummary(); buildQueue();
+    };
   });
+  pickSummary();
+}
+
+/* 收起来之后，按钮旁边那行字就是全部信息，得说清楚选了什么 */
+function pickSummary(){
+  const n = chosen.size;
+  const names = [...chosen].sort((a,b)=>a-b).map(i=>LIB[i].title);
+  $("pickSum").textContent =
+    n === 0 ? "一篇都没选" :
+    n === LIB.length ? "全部 " + n + " 篇" :
+    n <= 3 ? names.join("、") :
+    names.slice(0,2).join("、") + " 等 " + n + " 篇";
+
   const tq = [...chosen].reduce((s,i)=>s+LIB[i].reciteQs,0);
   const nb = LIB.filter(p=>p.recite).length;
   $("libInfo").textContent = LIB.length+" 篇（要背 "+nb+"） · "+tq+" 题 · 难字 "
     + hardSet.size + " · 注释 " + NOTES.length;
 }
+
 function syncFields(){
   const reading = type === "read";
   $("densityField").style.display = type === "sentence" ? "" : "none";
@@ -5006,13 +5166,76 @@ $("types").querySelectorAll("button").forEach(b=>{
 $("restart").onclick = buildQueue;
 $("selAll").onclick  = ()=>{ chosen = new Set(LIB.map((_,i)=>i)); buildChips(); buildQueue(); };
 $("selNone").onclick = ()=>{ chosen = new Set(); buildChips(); buildQueue(); };
+$("selRecite").onclick = ()=>{
+  chosen = new Set(LIB.map((p,i)=>p.recite ? i : -1).filter(i=>i>=0));
+  buildChips(); buildQueue();
+};
+$("pickSearch").oninput = buildChips;
+$("openPicker").onclick  = ()=>{ $("pickerBox").hidden = false; $("pickSearch").focus(); };
+$("closePicker").onclick = ()=>{ $("pickerBox").hidden = true; };
+$("pickerBox").onclick = e=>{ if(e.target === $("pickerBox")) $("pickerBox").hidden = true; };
 
 /* ============ 我的数据 ============ */
 function userFileText(){
   return "/* 古诗文默写 · 用户数据 user.js  由页面导出，替换同目录下的旧文件即可 */\n"+
-         "window.USER = " + JSON.stringify({ marks:[...marks], wrong:wrongCount }, null, 1) + ";\n";
+         "window.USER = " + JSON.stringify({ marks:[...marks], wrong:wrongCount, weak:weak }, null, 1) + ";\n";
 }
-function fillBox(){ $("dataText").value = userFileText(); $("dataMsg").textContent = ""; }
+/* 标记和错题得有个地方看，不能只能「练」不能「查」。
+   题目是按内容存的（篇名::句子），所以拆开就能显示。 */
+function splitKey(k){
+  const i = k.indexOf("::");
+  return i < 0 ? { who:"", what:k } : { who:k.slice(0,i), what:k.slice(i+2) };
+}
+
+function listBlock(title, keys, kind){
+  if(!keys.length)
+    return '<h3 class="subhead">'+title+'</h3><div class="myempty">还没有。</div>';
+  return '<h3 class="subhead">'+title+'（'+keys.length+'）'
+    + '<button class="linkbtn" data-only="'+kind+'" style="margin-left:12px">只练这些</button>'
+    + '</h3><ul class="mylist">'
+    + keys.map(k=>{
+        const s = splitKey(k);
+        const n = kind === "wrong" ? (wrongCount[k]||0) : 0;
+        const w = weak[k];
+        return '<li><span class="who">'+esc(s.who)+'</span>'
+          + '<span class="what">'+esc(s.what)
+          + (w ? '<span class="n">　挑出 '+w.length+' 处记不住</span>' : '')
+          + '</span>'
+          + (n ? '<span class="n">错 '+n+' 次</span>' : '')
+          + '<button class="drop" data-k="'+esc(k)+'" data-kind="'+kind+'" title="移出">×</button></li>';
+      }).join("")
+    + '</ul>';
+}
+
+function fillMyList(){
+  const box = $("myList");
+  const wrongKeys = Object.keys(wrongCount).filter(k=>wrongCount[k] > 0)
+                          .sort((a,b)=>wrongCount[b]-wrongCount[a]);
+  box.innerHTML = listBlock("标记过的题", [...marks], "marked")
+                + listBlock("答错过的题", wrongKeys, "wrong");
+
+  box.querySelectorAll(".drop").forEach(b=>{
+    b.onclick = ()=>{
+      const k = b.dataset.k;
+      if(b.dataset.kind === "marked") marks.delete(k);
+      else { delete wrongCount[k]; delete weak[k]; }
+      saveUser(); fillMyList(); fillBox(); updateTally();
+    };
+  });
+  box.querySelectorAll("[data-only]").forEach(b=>{
+    b.onclick = ()=>{
+      $("filter").value = b.dataset.only;
+      $("dataPanel").hidden = true;
+      buildQueue();
+    };
+  });
+}
+
+function fillBox(){
+  $("dataText").value = userFileText();
+  $("dataMsg").textContent = "";
+  fillMyList();
+}
 $("toggleData").onclick = ()=>{ const p = $("dataPanel"); p.hidden = !p.hidden; if(!p.hidden) fillBox(); };
 $("doDownload").onclick = ()=>{
   try{
