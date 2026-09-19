@@ -35,9 +35,22 @@ VOWEL = "aeiouüāáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ"
 PINYIN = re.compile(r"([一-鿿]+)（([a-zü" + VOWEL + r"ńňǹɡ\s]+)）")
 SYLLABLE = re.compile(r"(?:[zcs]h|[bpmfdtnlgkhjqxrwyzcsɡ])?[" + VOWEL +
                       r"]+(?:n[gɡ]?|r)?")
-# 常用多音字（不、说、读、还……）课本也注音，但那是随语境变读，
-# 不是字难写。全书出现这么多次的字不进难字表，它们的异读注释里本来就有。
-COMMON = 60
+COMMON1 = os.path.join(HERE, "tools", "data", "常用字-一级3500.txt")
+
+
+def common_chars():
+    """《通用规范汉字表》一级字表——现代汉语最常用的 3500 字。
+
+    难写字就按它判：古诗文正文里凡是不在这张表内的，算难写。比数字频准得多。
+    「樽」「衿」「掇」「觥」在课本里出现七八次，按字频不算低，可都是二级
+    （次常用）字，确实容易写错；反过来「俭」「偿」「剖」「堤」在课本里也只
+    出现几次，却都是一级常用字，不该当难写字考。"""
+    if not os.path.exists(COMMON1):
+        return set()
+    text = "".join(l for l in open(COMMON1, encoding="utf-8") if not l.startswith("#"))
+    return set(CJK.findall(text))
+
+
 # 注释正文里的小注：句号之后，「某词，怎么讲。」
 SUBNOTE = re.compile(r"。([^，。；：？！“”‘’（）〔〕《》]{1,4})，([^。]+。)")
 
@@ -50,7 +63,7 @@ DATA_JS = """/* ================================================================
    这个文件由 tools/build.py 从教科书 PDF 生成，别手改。
    要改内容，改 extract/篇/ 下的中间稿或者 tools/ 里的几张表，
    再跑一遍：  python3 tools/pdfdump.py && python3 tools/assemble.py && python3 tools/build.py
-   五个板块的格式说明写在各自上方。
+   六个板块的格式说明写在各自上方。
    ================================================================== */
 
 window.DATA = {
@@ -97,7 +110,21 @@ notes: `
 `,
 
 /* ------------------------------------------------------------------
-   四、理解性默写  comprehension
+   四、词语  words
+   ------------------------------------------------------------------
+   一行一条，四段用竖线隔开：
+       词 | 拼音 | 题型 | 来源
+   题型：`写` 看拼音写词语（字生僻）、`读` 看词写拼音（有字变了读音）、
+         `都考` 两种都出。
+   来源：`课本`（课本自己注的音，最权威）、`成语`、`词典`。
+   由 tools/words.py 生成，词都在课本里出现过。
+------------------------------------------------------------------ */
+words: `
+%s
+`,
+
+/* ------------------------------------------------------------------
+   五、理解性默写  comprehension
    ------------------------------------------------------------------
    一行一题，三段用竖线隔开：  篇名 | 提示语 | 答案
    篇名要和 corpus 里的一字不差。这一板块课本里没有现成的，待补。
@@ -106,7 +133,7 @@ comprehension: `
 `,
 
 /* ------------------------------------------------------------------
-   五、译文与解析  gloss
+   六、译文与解析  gloss
    ------------------------------------------------------------------
    答错之后才会显示。一行一条，三段用竖线隔开：  出处 | 原句 | 译文与解析
    原句要和正文里切出的那一题一字不差。想分行用两个斜杠 // 隔开。
@@ -224,6 +251,21 @@ def save_edits(edits):
         f.write("\n".join(lines) + "\n")
 
 
+def load_words():
+    """词语表，由 tools/words.py 生成。没有就算了，页面会自己藏起那个模式。"""
+    path = os.path.join(OUT, "词语.tsv")
+    if not os.path.exists(path):
+        return []
+    rows = []
+    for line in open(path, encoding="utf-8"):
+        if line.startswith("#"):
+            continue
+        c = line.rstrip("\n").split("\t")
+        if len(c) >= 4 and c[0]:
+            rows.append(" | ".join([c[0], c[1], c[2], c[3]]))
+    return rows
+
+
 def bookfreq():
     """全书字频。常用字动辄成千上万次，生僻字个位数，用来认难写字。"""
     cnt = collections.Counter()
@@ -322,7 +364,7 @@ def depinyin(s):
     return re.sub(r"（[^）]*）", "", s)
 
 
-def build(book, freq, edits):
+def build(book, freq, edits, COMMON):
     pieces = []
     for path in sorted(glob.glob(os.path.join(SRC, book + "-*.md"))):
         pieces.append(readpiece(path))
@@ -342,9 +384,10 @@ def build(book, freq, edits):
                     sounds.setdefault(ch, s)
 
         plain = "".join(MARK.sub("", l) for para in pc["paras"] for l in para)
-        rare = {ch for ch in set(CJK.findall(plain))
-                if freq.get(ch, 0) <= 3
-                or (ch in sounds and freq.get(ch, 0) <= COMMON)}
+        # 不在 3500 常用字里的就算难字；课本给它注过音的，把音也带上。
+        # 常用多音字（不 fǒu、说 yuè、读 dòu）在表内，不收——那是随语境变读，
+        # 不是字难写，一收正文里每个「不」都要被圈。
+        rare = {ch for ch in set(CJK.findall(plain)) if ch not in COMMON}
         # 手圈的说了算：加过的加上，删过的去掉
         mine = edits.get(pc["title"], {"加": set(), "删": set()})
         rare = (rare | mine["加"]) - mine["删"]
@@ -444,13 +487,21 @@ def build(book, freq, edits):
 
 def main():
     freq = bookfreq()
-    books = sys.argv[1:] or BOOKS
+    COMMON = common_chars()
+    args = sys.argv[1:]
+    # --regen：不管上一版 data.js 圈了什么，完全按自动规则重判一遍。
+    # 改了难字判定规则时要用——否则 harvest 会把上一版的结果当成手圈留下来，
+    # 新规则等于白改。会清空手圈账本，所以只在确实想重来时用。
+    regen = "--regen" in args
+    books = [a for a in args if not a.startswith("-")] or BOOKS
 
     # 先把上一版 data.js 里手圈的括号扒下来，免得重跑一冲就没了。
     # data.js 是权威；它不在（刚 clone 下来）才退回去读备份表。
-    edits = load_edits()
+    edits = {} if regen else load_edits()
     dst_js = os.path.join(HERE, "data.js")
-    seen = harvest(dst_js)
+    seen = None if regen else harvest(dst_js)
+    if regen:
+        save_edits({})
     if seen is not None:
         auto = {}
         for b in BOOKS:
@@ -465,8 +516,7 @@ def main():
                             sounds.setdefault(ch, sy)
                 plain = "".join(MARK.sub("", l) for para in pc["paras"] for l in para)
                 auto[pc["title"]] = {ch for ch in set(CJK.findall(plain))
-                                     if freq.get(ch, 0) <= 3
-                                     or (ch in sounds and freq.get(ch, 0) <= COMMON)}
+                                     if ch not in COMMON}
         edits = {}
         for title, circled in seen.items():
             a = auto.get(title)
@@ -479,7 +529,7 @@ def main():
 
     allc, allh, alln, allm = [], {}, [], []
     for b in books:
-        c, h, n, m = build(b, freq, edits)
+        c, h, n, m = build(b, freq, edits, COMMON)
         allm += m
         allc += ["// 册 %s" % b] + c
         for k, v in h.items():
@@ -505,7 +555,8 @@ def main():
 
     with open(os.path.join(HERE, "data.js"), "w", encoding="utf-8") as f:
         f.write(DATA_JS % ("\n".join(allc), "\n".join(lines),
-                           "\n".join(" | ".join(r) for r in alln)))
+                           "\n".join(" | ".join(r) for r in alln),
+                           "\n".join(load_words())))
     print("篇 %d，难字 %d，注释 %d 条 → %s"
           % (sum(1 for l in allc if l.startswith("# ")), len(allh), len(alln),
              os.path.relpath(dst, HERE)))
