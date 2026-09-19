@@ -138,14 +138,66 @@ def split_gap(lines):
     return out
 
 
+def justified(lines):
+    """这一篇是不是像散文一样两端对齐排的。
+
+    《离骚（节选）》《琵琶行》《孔雀东南飞》这些连排的长篇虽然归在「诗」里，
+    版面跟散文一模一样：连排、两端对齐、段首缩进两格。分段就全在缩进上，
+    按行距根本看不出来——《离骚》不这么判会并成一整段，课本要求的
+    「背诵第3段」就没有着落。
+
+    认它要看右边，不能看左边：《沁园春》整块左对齐、右边参差，左边一样齐，
+    右边只有 8% 的行顶到头；《离骚》有 77%。行长整齐的律诗两边都齐，
+    但那样每行缩进都是 0，走哪条路结果一样，不会判错。"""
+    xs = [l for l in lines]
+    if len(xs) < 4:
+        return False
+    hit = tot = 0
+    for pno in {l["page"] for l in xs}:
+        w = [l["x1"] for l in xs if l["page"] == pno]
+        edge = max(w)
+        hit += sum(1 for v in w if edge - v < 8)
+        tot += len(w)
+    return hit >= tot * 0.5
+
+
+def lead_of(lines):
+    """这一篇的行距：取全篇的中位数。
+
+    不能一段一段地算——《声声慢》下阕才四行，其中两行因为带角标量出来只有
+    15 点，中位数被压到 15，正常的 21 点行距反倒成了「留白」，
+    「梧桐更／兼细雨」就在词中间劈开了。"""
+    gaps = [b["y0"] - a["y0"] for a, b in zip(lines, lines[1:])
+            if b["page"] == a["page"] and b["y0"] > a["y0"]]
+    return sorted(gaps)[len(gaps) // 2] if gaps else 21.0
+
+
+def regap(paras, lead):
+    """齐头排的诗，除了缩进，课本也可能只留一道白就分段（《琵琶行》的小序
+    跟正文之间）。缩进那一路走完，再按行距补一刀。"""
+    out = []
+    for para in paras:
+        cur = []
+        for i, l in enumerate(para):
+            if cur and (l.get("gapBefore") or (l["page"] == para[i - 1]["page"]
+                        and l["y0"] - para[i - 1]["y0"] > lead * 1.5)):
+                out.append(cur)
+                cur = []
+            cur.append(l)
+        if cur:
+            out.append(cur)
+    return out
+
+
 def paragraphs(lines, genre):
-    """还原分段。文靠首行缩进，诗靠行距跳变（词的上下阕之间书上会空一行）。"""
+    """还原分段。齐头排的靠首行缩进，居中排的诗靠行距跳变
+    （词的上下阕之间书上会空一行）。"""
     if not lines:
         return []
     lines = split_gap(lines)
     paras, cur = [], []
 
-    if genre == "文":
+    if genre == "文" or justified(lines):
         # 版心随单双页左右挪，一篇里各页的左边界并不一样，所以基准线要
         # 一页一算。段首是正正好好缩进两格；缩得更多的是在绕开插图，
         # 那还是同一段里的行。
@@ -175,12 +227,11 @@ def paragraphs(lines, genre):
                 paras.append(cur)
                 cur = []
             cur.append(l)
+        if genre != "文":
+            paras, cur = regap(paras + ([cur] if cur else []),
+                               lead_of(lines)), []
     else:
-        gaps = []
-        for a, b in zip(lines, lines[1:]):
-            if b["page"] == a["page"]:
-                gaps.append(b["y0"] - a["y0"])
-        lead = sorted(gaps)[len(gaps) // 2] if gaps else 21.0
+        lead = lead_of(lines)
         for i, l in enumerate(lines):
             if cur and (l.get("gapBefore") or (l["page"] == lines[i - 1]["page"]
                         and l["y0"] - lines[i - 1]["y0"] > lead * 1.5)):

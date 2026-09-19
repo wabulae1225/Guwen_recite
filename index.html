@@ -447,8 +447,10 @@ function parseCorpus(raw){
 
 function buildQuestions(type, lines){
   let qs = [];
+  /* 课本用一行「……」表示跳过的段落，看原文时照样显示，但它不成题 */
+  const hasCJK = us => us.some(u => [...u.body].some(c=>CJK.test(c)));
   if(type === "verse"){
-    for(const l of lines){ const u = segment(l); if(u.length) qs.push(u); }
+    for(const l of lines){ const u = segment(l); if(u.length && hasCJK(u)) qs.push(u); }
   }else{
     let buf = [];
     for(const l of lines){
@@ -458,6 +460,7 @@ function buildQuestions(type, lines){
       }
     }
     if(buf.length) qs.push(buf);
+    qs = qs.filter(hasCJK);
   }
   if(type === "verse") return qs;
   /* 文按句号切完，短句单独成题没意思——「求，尔何如？」才五个字。

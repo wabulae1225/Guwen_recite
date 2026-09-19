@@ -146,7 +146,7 @@ gloss: `
 """
 
 
-def readpiece(path):
+def readpiece(path, paras_at=None):
     text = open(path, encoding="utf-8").read()
     head, rest = text.split("\n\n", 1)
     title, author, genre = [c.strip() for c in head.lstrip("# ").split("|")]
@@ -180,10 +180,92 @@ def readpiece(path):
                 notes.append((int(n), body.strip()))
     if cur:
         paras.append(cur)
+    paras = cut_blank(paras)
     if genre == "诗":
         paras = [relineate(p) for p in paras]
+    paras = cut_paras(paras, (paras_at or {}).get(title))
+    paras = join_ellipsis(paras)
     return {"title": title, "author": author, "genre": genre,
             "recite": recite, "paras": paras, "notes": notes}
+
+
+WIDEGAP = re.compile("\u3000{2,}")
+
+
+def cut_blank(paras):
+    """课本给词的换头留白，有时就是两个全角空格。
+
+    《虞美人》「故国不堪回首月明中。　　雕栏玉砌应犹在」、《江城子》
+    「鬓如霜。　　夜来幽梦忽还乡」——排版上是换头，抽出来却跟正文连在一行里。
+    这是第三种留白写法：前两种是版面上空出一大块（assemble 能看出来）、
+    和跨页换头（看不出来，只能在 paras.tsv 里点名）。这一种字面上就带着，
+    在这儿断开，空格本身不留。"""
+    out = []
+    for para in paras:
+        cur = []
+        for line in para:
+            parts = WIDEGAP.split(line)
+            for i, part in enumerate(parts):
+                part = part.strip("\u3000")
+                if i and cur:
+                    out.append(cur)
+                    cur = []
+                if part:
+                    cur.append(part)
+        if cur:
+            out.append(cur)
+    return out
+
+
+ELLIPSIS = re.compile(r"^[…\u2026.\u3002\s]+$")
+
+
+def join_ellipsis(paras):
+    """课本用一行「……」表示跳过的段落，那一行版面上也缩进两格，看着像一个段。
+
+    可它不是段。《离骚（节选）》的学习提示写「背诵第3段」，指的是
+    「长太息以掩涕兮」那一段；要是把「……」也数成一段，第3段就落到省略号
+    头上，背诵范围整个错位。所以把它并回上一段的末尾——照样显示，不占段号。"""
+    out = []
+    for para in paras:
+        if out and all(ELLIPSIS.match(MARK.sub("", l)) for l in para):
+            out[-1] = out[-1] + para
+        else:
+            out.append(para)
+    return out
+
+
+PARATABLE = os.path.join(HERE, "tools", "paras.tsv")
+
+
+def load_paras():
+    """人工指定的分段点。跨页的分段版面上看不出来，只能点名，见表里的说明。"""
+    out = {}
+    if not os.path.exists(PARATABLE):
+        return out
+    for line in open(PARATABLE, encoding="utf-8"):
+        line = line.split("#")[0].rstrip()
+        cols = [c.strip() for c in line.split("\t") if c.strip()]
+        if len(cols) >= 2:
+            out.setdefault(cols[0], []).append(cols[1])
+    return out
+
+
+def cut_paras(paras, marks):
+    """在点名的那几句之前断开。"""
+    if not marks:
+        return paras
+    out = []
+    for para in paras:
+        cur = []
+        for line in para:
+            if cur and any(MARK.sub("", line).startswith(m) for m in marks):
+                out.append(cur)
+                cur = []
+            cur.append(line)
+        if cur:
+            out.append(cur)
+    return out
 
 
 BRACED = re.compile(r"\{([^}]*)\}")
@@ -278,24 +360,37 @@ def bookfreq():
     return cnt
 
 
+def cut_stops(text):
+    """按句末标点切句，句末的引号跟着上一句走。
+
+    引号里不能不切。《孔雀东南飞》刘兰芝一开口就是二十多句，《赤壁赋》客人
+    那段话几百字——真要等引号收口才算一句，整段话就成了一句，注释的例句
+    也跟着变成整段。页面上的切法（index.html 的 buildQuestions）本来就是
+    见句号就切、末尾的引号补回上一句，这边跟它对齐。"""
+    out, buf = [], ""
+    for ch in text:
+        buf += ch
+        if ch in STOP:
+            out.append(buf)
+            buf = ""
+    if buf:
+        out.append(buf)
+    merged = []
+    for s in out:
+        if merged and s[:1] in "”’」』）)":
+            merged[-1] += s[0]
+            s = s[1:]
+        if s:
+            merged.append(s)
+    return merged
+
+
 def sentences(para, genre):
     """按 data.js 的分题粒度切句：诗一行一题；文按句号，太短的并进下一题。
     「求，尔何如？」这种四五个字的问句单独成题没意思，合过去才像一道题。"""
     if genre == "诗":
         return list(para)
-    text = "".join(para)
-    out, buf, depth = [], "", 0
-    for ch in text:
-        buf += ch
-        if ch in "“‘":
-            depth += 1
-        elif ch in "”’":
-            depth -= 1
-        elif ch in STOP and depth <= 0:
-            out.append(buf)
-            buf = ""
-    if buf:
-        out.append(buf)
+    out = cut_stops("".join(para))
 
     # 句末的引号要跟着上一句走，不能自己吊在下一句头上
     merged = []
@@ -326,29 +421,14 @@ def relineate(para):
     所以按句末标点重新断行，一行还它一句。律诗本来就一句一行，不动。"""
     lines = [MARK.sub("", l) for l in para]
     ends = sum(1 for l in lines if l and l[-1] in STOP)
-    if len(lines) < 2 or ends >= len(lines) * 0.75:
+    # 行末整齐地落在句号上，未必就是一句一行——《念奴娇·过洞庭》上阕排了
+    # 两行，一行两句，碰巧都断在句号上。真正一句一行的是律诗绝句，一行
+    # 最多十五六个字；排满一行才折的，二十几个字打不住。两条都看。
+    longest = max(len(CJK.findall(l)) for l in lines) if lines else 0
+    if len(lines) < 2 or (ends >= len(lines) * 0.75 and longest <= 18):
         return list(para)
 
-    out, buf, depth = [], "", 0
-    for ch in "".join(para):
-        buf += ch
-        if ch in "“‘":
-            depth += 1
-        elif ch in "”’":
-            depth -= 1
-        elif ch in STOP and depth <= 0:
-            out.append(buf)
-            buf = ""
-    if buf:
-        out.append(buf)
-    merged = []
-    for s in out:                      # 句末的引号跟着上一句走
-        if merged and s[:1] in "”’":
-            merged[-1] += s[0]
-            s = s[1:]
-        if s:
-            merged.append(s)
-    return merged
+    return cut_stops("".join(para))
 
 
 def entry_of(body):
@@ -365,9 +445,10 @@ def depinyin(s):
 
 
 def build(book, freq, edits, COMMON):
+    paras_at = load_paras()
     pieces = []
     for path in sorted(glob.glob(os.path.join(SRC, book + "-*.md"))):
-        pieces.append(readpiece(path))
+        pieces.append(readpiece(path, paras_at))
 
     corpus, notes, hard, misses = [], [], {}, []
 
@@ -506,7 +587,7 @@ def main():
         auto = {}
         for b in BOOKS:
             for path in sorted(glob.glob(os.path.join(SRC, b + "-*.md"))):
-                pc = readpiece(path)
+                pc = readpiece(path, load_paras())
                 sounds = {}
                 for _, body in pc["notes"]:
                     for word, py in PINYIN.findall(body):
