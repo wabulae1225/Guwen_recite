@@ -338,6 +338,32 @@ def load_hand():
     return out
 
 
+def mark_hard(word, common):
+    """在词里用大括号圈出该挖的字：`{桅}杆`、`{琵琶}`。
+
+    页面照括号遮字，写法和 corpus 里圈难字一模一样。为什么要在这儿圈——
+    页面本来判「难写」看的是 hardChars，可那张表是从 66 篇古诗文正文抽的，
+    词语表里大量词出自现代文（刽子、桅杆、唢呐、札记），一个字都不在表内，
+    于是整词都挖，跟「只挖难的那个字」的说法对不上（v0.22 查出 400 条）。
+    判据在这边现成：不在《通用规范汉字表》一级字表里的就是难写字。
+
+    整词都是常用字的（靠变读收进来的，如「字里行间」）不圈，页面自会整词挖。"""
+    if all(ch in common for ch in word):
+        return word
+    out, run = "", ""
+    for ch in word:
+        if ch not in common:
+            run += ch
+        else:
+            if run:
+                out += "{%s}" % run
+                run = ""
+            out += ch
+    if run:
+        out += "{%s}" % run
+    return out
+
+
 def check_hand(hand):
     """自拟例句的三道自检，跟正文那三道一个意思：报出来，人回去判真假。
 
@@ -489,6 +515,7 @@ def main():
                 "\t 例句 \t 例句出处 \t 课本里出现次数\n")
         for w in order:
             py, src, where = rows[w]
+            marked = mark_hard(w, common)
             if w in hand and hand[w][2]:
                 py = hand[w][2]              # 人工按住机器注错的音
             gloss, gsrc = gloss_of(w)
@@ -497,7 +524,7 @@ def main():
                 miss.append(w)
             # 课本注音里混着国际音标的 ɡ（U+0261），统一成普通的 g
             f.write("%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%d\n"
-                    % (w, py.replace("ɡ", "g"), kind(w, src), src,
+                    % (marked, py.replace("ɡ", "g"), kind(w, src), src,
                        gloss, gsrc, ex, exsrc or where, full.count(w)))
     bad = check_hand(hand)
     if bad:
