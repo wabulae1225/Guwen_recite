@@ -48,6 +48,8 @@ OUT = os.path.join(HERE, "extract", "词语.tsv")
 HAND = os.path.join(HERE, "tools", "释义-自拟.tsv")   # 两本词典都查不着的，人工写
 
 CJKW = re.compile(r"^[\u4e00-\u9fff]{2,4}$")
+# 栏目标题：第X单元 / 一二三打头的小节标题
+SECTION = re.compile(r"^(第[一二三四五六七八九十]+单元|[一二三四五六七八九十][^、，。]{4,})$")
 TONED = re.compile(r"[āáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ]")
 
 
@@ -206,7 +208,10 @@ def pages_text():
         title = d["book"]
         for p in sorted(d["pages"], key=lambda x: x["page"]):
             if p["titles"]:
-                title = B.MARK.sub("", p["titles"][0]).strip()
+                t = B.MARK.sub("", p["titles"][0]).strip()
+                # 「第八单元」「二运用有效的推理形式」这类是栏目标题不是篇名，
+                # 拿它当例句出处、再套上书名号就不成话了，记册名了事
+                title = d["book"] if SECTION.match(t) else t
             lines = sorted(p["body"], key=lambda l: (l["col"], l["y0"]))
             joined = "".join(B.MARK.sub("", l["text"]).strip() for l in lines)
             if joined:

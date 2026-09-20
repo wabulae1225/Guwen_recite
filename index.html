@@ -115,6 +115,10 @@ select{background:#fff;border:1px solid var(--rule);border-radius:2px;padding:6p
   margin-top:14px}
 .hardchar{color:var(--cinnabar);border-bottom:1px dotted var(--cinnabar-soft)}
 .target{color:var(--cinnabar);font-weight:600}
+.wordex{font-family:var(--serif);font-size:16px;line-height:2;margin-top:18px;
+  color:var(--ink-soft);text-align:left}
+.wordex .from{font-family:var(--sans);font-size:12px;margin-left:8px;color:var(--ink-soft)}
+.wordex .cbox{vertical-align:-2px}
 .target sup{font-size:.55em;vertical-align:super;margin-left:1px}
 
 /* 答案区 */
@@ -499,12 +503,16 @@ const NOTES = parseRows(D.notes, 5).map(p=>({
   src:p[0], word:stripOnly(p[1]), def:p[2], ex:p[3], from:p[4]
 }));
 /* 词语：看拼音写词语（字生僻）／看词写拼音（有字变了读音）。
-   「都考」的两种都出，各算一题。 */
+   「都考」的两种都出，各算一题。
+   八段：词 | 拼音 | 题型 | 词源 | 释义 | 释义来源 | 例句 | 例句出处
+   （四段的旧写法也认，释义和例句当空的处理） */
 const WORDS = [];
-for(const p of parseRows(D.words, 4)){
-  const [w, py, kind, src] = p;
-  if(kind !== "读") WORDS.push({ w, py, src, ask:"写" });
-  if(kind !== "写") WORDS.push({ w, py, src, ask:"读" });
+for(const row of parseRows(D.words, 4)){
+  const [w, py, kind, src, def, defsrc, ex, exfrom] =
+        row.concat(["","","",""]).map(x=>x||"");
+  const base = { w, py, src, def, defsrc, ex, exfrom };
+  if(kind !== "读") WORDS.push(Object.assign({ ask:"写" }, base));
+  if(kind !== "写") WORDS.push(Object.assign({ ask:"读" }, base));
 }
 
 const COMP = parseRows(D.comprehension, 3).map(p=>({
@@ -687,6 +695,36 @@ function renderExample(ex, reveal){
   return ex.replace(/\{([^}]*)\}/g, (m,w)=>
     '<span class="target">'+esc(w)+'<sup>①</sup></span>');
 }
+/* 词语「写」题：只挖难写的那个字，其余字照常显示。
+   「穹庐」的庐是常用字，挖它没意义；挖的位置就是难字判据认定的那些。
+   一个难字都没有的词（全是常用字，靠变读收进来的）整词都挖。 */
+/* 例句出处：库里的篇名加书名号（鸿门宴 → 《鸿门宴》），
+   成语书证本来就带着书名号（《答新渝侯和诗书》），原样照抄。
+   册名（必修上、选必中……）是书不是篇，不加书名号。 */
+const BOOKS = ["必修上","必修下","选必上","选必中","选必下"];
+function fmtFrom(from){
+  if(BOOKS.includes(from)) return "课本 " + from;
+  return /^《/.test(from) ? from : "《" + from + "》";
+}
+function hardIn(word){
+  const hard = [...word].filter(ch => hardSet.has(ch));
+  return hard.length ? new Set(hard) : new Set([...word]);
+}
+function renderWordBlank(word, hide){
+  return [...word].map(ch =>
+    hide.has(ch) ? '<span class="cbox"></span>' : esc(ch)).join("");
+}
+/* 例句是拿来给情景的，可被考的词得一并遮住，不然答案白给。
+   遮的范围和答案挖的一致：只挖一个字，例句里也只遮那一个字。
+   mode：`hide` 遮字（写题未翻答案）、`bare` 光秃秃地显示（读题未翻答案——
+   renderHard 会把难字的拼音一并渲染出来，正是读题要问的答案）、
+   其余（已翻答案）照难字样式显示。 */
+function renderWordEx(ex, mode, hide){
+  return ex.replace(/\{([^}]*)\}/g, (m,w)=>
+    mode === "hide" ? renderWordBlank(w, hide)
+    : '<span class="target">'
+      + (mode === "bare" ? esc(w) : renderHard(w)) + '</span>');
+}
 /* 整段回显，当前这一题高亮 */
 function renderPara(it){
   const p = LIB[it.pieceIdx];
@@ -823,15 +861,36 @@ function render(){
     const w = WORDS[it.wi];
     cls = "prose";
     title = w.src === "课本" ? "课本注音" : (w.src === "成语" ? "成语" : "常用词");
+    const hide = hardIn(w.w);
     if(w.ask === "写"){
       promptHTML = '<div class="prompt">看拼音，写词语</div>';
       body = '<div class="pytop">'+esc(w.py)+'</div>'
-           + (shown ? renderHard(w.w) : '<span class="blank" style="width:'+(w.w.length*1.25)+'em">&nbsp;</span>');
+           + (shown ? renderHard(w.w) : renderWordBlank(w.w, hide));
     }else{
       // 问读音的时候，字就得是光秃秃的——难字表里带着拼音，一渲染就把答案漏了
       promptHTML = '<div class="prompt">这个词怎么读？</div>';
       body = (shown ? renderHard(w.w) : esc(w.w))
            + '<div class="pybot">'+(shown ? esc(w.py) : '<span class="blank" style="width:7em">&nbsp;</span>')+'</div>';
+    }
+    // 光给个拼音太难了，得有情景：例句优先，没例句的拿释义顶上。
+    // 「写」题的例句里，被考的词按上面同样的范围遮起来
+    if(w.ex){
+      const mode = shown ? "show" : (w.ask === "写" ? "hide" : "bare");
+      // 出处里也可能含着答案（「青蒿」的例句出自《青蒿素……》），遮字的时候
+      // 连出处一起收起来，翻答案再给
+      const leaky = mode === "hide" && [...hide].some(ch => w.exfrom.includes(ch));
+      body += '<div class="wordex">例句　'
+            + renderWordEx(w.ex, mode, hide)
+            + (w.exfrom && !leaky ? '<span class="from">'+esc(fmtFrom(w.exfrom))+'</span>' : '')
+            + '</div>';
+    }else if(w.def && w.ask === "写" && !shown){
+      body += '<div class="wordex">释义　'+esc(w.def)+'</div>';
+    }
+    if(shown && w.def){
+      const alt = w.defsrc !== "课本";
+      revealHTML = '<div class="reveal"><h4>释义</h4>'
+        + '<div class="defbox'+(alt?" alt":"")+'">'+esc(w.def)
+        + '<span class="tag">'+esc(w.defsrc || "释义")+'</span></div></div>';
     }
   }else if(it.kind === "comp"){
     const c = COMP[it.ci];
