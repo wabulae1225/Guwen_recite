@@ -338,6 +338,32 @@ def load_hand():
     return out
 
 
+def check_hand(hand):
+    """自拟例句的三道自检，跟正文那三道一个意思：报出来，人回去判真假。
+
+    1. 词要用大括号圈起来，页面照它遮字；
+    2. **圈起来的那处之外，例句里不许再出现这个词里的任何一个字**——
+       页面遮的是难字，可「一个难字都没有的词整词都遮」，到底遮哪几个字
+       要看难字表，写例句时算不清。索性按最严的来：一个字都不许重复出现，
+       这样无论遮几个字都漏不了答案；
+    3. 长短和自动抓的例句一个尺度（8–46 字）。
+    """
+    bad = []
+    for w, (gloss, ex, py) in hand.items():
+        if not ex:
+            continue
+        if "{%s}" % w not in ex:
+            bad.append((w, "没把词圈起来")); continue
+        rest = ex.replace("{%s}" % w, "")
+        dup = [c for c in dict.fromkeys(w) if c in rest]
+        if dup:
+            bad.append((w, "「%s」在例句别处又出现，会漏答案" % "".join(dup)))
+        n = len(re.sub(r"[{}]", "", ex))
+        if not (MINEX <= n <= MAXEX):
+            bad.append((w, "%d 字，超出 %d–%d" % (n, MINEX, MAXEX)))
+    return bad
+
+
 def norm(p):
     return re.sub(r"\s+", "", p.replace("ɡ", "g")).lower()
 
@@ -473,6 +499,13 @@ def main():
             f.write("%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%d\n"
                     % (w, py.replace("ɡ", "g"), kind(w, src), src,
                        gloss, gsrc, ex, exsrc or where, full.count(w)))
+    bad = check_hand(hand)
+    if bad:
+        print("  自拟例句有 %d 处要看：" % len(bad))
+        for w, why in bad[:12]:
+            print("    %s　%s" % (w, why))
+        if len(bad) > 12:
+            print("    ……还有 %d 处" % (len(bad) - 12))
     tally = collections.Counter(v[1] for v in rows.values())
     print("词语 %d 条 → %s" % (len(rows), os.path.relpath(OUT, HERE)))
     print("  词源　" + "　".join("%s %d" % kv for kv in tally.most_common()))

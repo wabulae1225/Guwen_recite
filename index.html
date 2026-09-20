@@ -703,6 +703,7 @@ function renderExample(ex, reveal){
    册名（必修上、选必中……）是书不是篇，不加书名号。 */
 const BOOKS = ["必修上","必修下","选必上","选必中","选必下"];
 function fmtFrom(from){
+  if(from === "自拟") return "自拟例句";   // 不是课本原文，说清楚
   if(BOOKS.includes(from)) return "课本 " + from;
   return /^《/.test(from) ? from : "《" + from + "》";
 }
