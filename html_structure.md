@@ -80,9 +80,10 @@ render()       画当前这一题
 - **`render()`**　总分发。一题一题的模式画一张卡片，`read` 模式画整页。
 - 各模式的渲染：`renderSentence`（句子，含可点的标红空位）、`renderChar`（难字）、
   `renderExample`（注释例句）、`renderReading`（看原文整页）、`glossFor`（答错弹的译文）。
-- 词语模式另有三个零件：`hardIn`（这个词里哪几个字算难写——就挖那几个，一个难字
-  都没有的整词都挖）、`renderWordBlank`（按这个范围画方框）、`renderWordEx`（例句，
-  三种模式见下）。
+- 词语模式另有三个零件：`hardIn`（该挖哪几个字——读 `data.js` 的词里那对大括号，
+  没括号的整词都挖）、`renderWordBlank`（按这个范围画方框）、`renderWordEx`（例句，
+  三种模式见下）。**挖哪几个字由数据说了算，页面不自己判**——页面手里只有
+  `hardSet`（古诗文正文的 579 个难字），判不了现代文里来的词。
 
 ### 词语模式的三处防漏
 
