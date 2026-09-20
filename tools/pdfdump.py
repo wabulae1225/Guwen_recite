@@ -266,7 +266,9 @@ def squeeze(s):
     s = re.sub(r"(?<=⟧) (?=[，。！？；：、）〕》”’])", "", s)
     s = re.sub(r"(?<=[" + CJK + r"]) (?=⟦)", "", s)
     s = re.sub(r"(?<=⟧) (?=[" + CJK + r"])", "", s)
-    return s
+    # 《兰亭集序》「岂不痛哉!」的叹号排的是 Times 的半角「!」，全书就这一处。
+    # 印在纸上照样是个叹号，可半角的话断句时认不出来，按全角收。
+    return re.sub(r"(?<=[" + CJK + r"])!", "\uff01", s)
 
 
 GLYPHS = os.path.join(HERE, "tools", "glyphs.tsv")
@@ -307,13 +309,19 @@ def split_captions(lines):
     cols = sorted({l["col"] for l in lines})
     for col in cols:
         group = [l for l in lines if l["col"] == col]
-        # 只有第一栏的前导行才是插图说明。后面几栏栏顶那几行，
-        # 是上一栏末条注释排不下续过来的，得接回去。
-        started = col != cols[0]
+        marked = [l for l in group if "⟦" in l["text"] or CIRCLED.match(l["text"])]
+        # 本栏第一条注释的起笔。续行挂在它下面，只多缩三四个点；
+        # 图注跟它对不上——《赤壁赋》那条右对齐，差着一百多点，
+        # 《与妻书》那条在左边，差着五十点。整栏一条注释也没有的
+        # （《念奴娇》的「赤壁图傅抱石作」独占一栏），那就整栏都是图注。
+        ref = marked[0]["x0"] if marked else None
+        started = False
         for line in group:
-            if "⟦" in line["text"] or CIRCLED.match(line["text"]):
+            if line in marked:
                 started = True
-            (notes if started else captions).append(line)
+            cap = not started and (col == cols[0] or ref is None
+                                   or abs(line["x0"] - ref) > 8)
+            (captions if cap else notes).append(line)
     return notes, captions
 
 
@@ -381,10 +389,21 @@ def dumppage(page, pno, book="", glyphs=None):
         groups[g] = rows_out
 
     # 仿宋不只用来署名：《琵琶行》《孔雀东南飞》这些篇前面的小序也是仿宋排的。
-    # 署名短，序成段——按行长度把序还给正文，不然整篇序都会当成作者名丢掉。
-    for row in list(groups["author"]):
-        n = sum(len(sp["text"].strip()) for sp in row["spans"])
-        if n > 8:
+    # 署名短，序成段，按行长短分得开——但不能一行一行地判：序的末行往往也短，
+    # 《扬州慢》那篇结在「之悲也。」，四个字，单看这一行会被当成署名丢掉。
+    # 所以先按行距把仿宋行连成一段一段（序行距十九点，跟署名隔着两行），
+    # 段里只要有一行成句，整段都还给正文。
+    runs = []
+    for row in sorted(groups["author"], key=lambda r: (r["col"], r["y1"])):
+        if runs and row["col"] == runs[-1][-1]["col"] \
+                and 0 <= row["y1"] - runs[-1][-1]["y1"] <= row["size"] * 2.0:
+            runs[-1].append(row)
+        else:
+            runs.append([row])
+    for run in runs:
+        if max(sum(len(sp["text"].strip()) for sp in r["spans"]) for r in run) <= 8:
+            continue
+        for row in run:
             groups["author"].remove(row)
             row["group"] = "body"
             groups["body"].append(row)

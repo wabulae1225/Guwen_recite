@@ -109,6 +109,10 @@ select{background:#fff;border:1px solid var(--rule);border-radius:2px;padding:6p
 .tickbar{margin-top:16px;padding-top:12px;border-top:1px dashed var(--rule);
   font-size:13px;color:var(--ink-soft);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .tickbar b{font-weight:600;color:var(--cinnabar)}
+.pytop{font-family:var(--sans);font-size:17px;letter-spacing:.14em;color:var(--ink-soft);
+  margin-bottom:14px}
+.pybot{font-family:var(--sans);font-size:17px;letter-spacing:.14em;color:var(--cinnabar);
+  margin-top:14px}
 .hardchar{color:var(--cinnabar);border-bottom:1px dotted var(--cinnabar-soft)}
 .target{color:var(--cinnabar);font-weight:600}
 .target sup{font-size:.55em;vertical-align:super;margin-left:1px}
@@ -237,6 +241,7 @@ select{background:#fff;border:1px solid var(--rule);border-radius:2px;padding:6p
     <button data-t="char" aria-pressed="false">难字默写</button>
     <button data-t="note" aria-pressed="false">注释</button>
     <button data-t="comp" aria-pressed="false">理解性默写</button>
+    <button data-t="word" aria-pressed="false">词语</button>
     <button data-t="read" aria-pressed="false">看原文</button>
   </div>
 
@@ -442,8 +447,10 @@ function parseCorpus(raw){
 
 function buildQuestions(type, lines){
   let qs = [];
+  /* 课本用一行「……」表示跳过的段落，看原文时照样显示，但它不成题 */
+  const hasCJK = us => us.some(u => [...u.body].some(c=>CJK.test(c)));
   if(type === "verse"){
-    for(const l of lines){ const u = segment(l); if(u.length) qs.push(u); }
+    for(const l of lines){ const u = segment(l); if(u.length && hasCJK(u)) qs.push(u); }
   }else{
     let buf = [];
     for(const l of lines){
@@ -453,6 +460,7 @@ function buildQuestions(type, lines){
       }
     }
     if(buf.length) qs.push(buf);
+    qs = qs.filter(hasCJK);
   }
   if(type === "verse") return qs;
   /* 文按句号切完，短句单独成题没意思——「求，尔何如？」才五个字。
@@ -490,6 +498,15 @@ const LIB = parseCorpus(D.corpus || "");
 const NOTES = parseRows(D.notes, 5).map(p=>({
   src:p[0], word:stripOnly(p[1]), def:p[2], ex:p[3], from:p[4]
 }));
+/* 词语：看拼音写词语（字生僻）／看词写拼音（有字变了读音）。
+   「都考」的两种都出，各算一题。 */
+const WORDS = [];
+for(const p of parseRows(D.words, 4)){
+  const [w, py, kind, src] = p;
+  if(kind !== "读") WORDS.push({ w, py, src, ask:"写" });
+  if(kind !== "写") WORDS.push({ w, py, src, ask:"读" });
+}
+
 const COMP = parseRows(D.comprehension, 3).map(p=>({
   title:p[0], prompt:p[1], answer:stripOnly(p[2])
 }));
@@ -541,6 +558,7 @@ const hasHard = units => units.some(u => [...u.body].some(ch=>hardSet.has(ch)));
 
 /* ============ 出题 ============ */
 function itemKey(it){
+  if(it.kind === "word"){ const w = WORDS[it.wi]; return keyOf("词语", w.ask + w.w); }
   if(it.kind === "comp"){ const c = COMP[it.ci]; return keyOf(c.title, c.prompt); }
   if(it.kind === "note"){ const n = NOTES[it.ni]; return keyOf("注释", n.word+"@"+n.ex); }
   const p = LIB[it.pieceIdx];
@@ -561,7 +579,12 @@ function buildQueue(){
     filter==="marked" ? marks.has(key) :
     filter==="wrong"  ? (wrongCount[key]||0) > 0 : true;
 
-  if(type === "comp"){
+  if(type === "word"){
+    WORDS.forEach((_,wi)=>{
+      const it = { kind:"word", wi };
+      if(passFilter(itemKey(it))) items.push(it);
+    });
+  }else if(type === "comp"){
     COMP.forEach((c,ci)=>{
       if(!titles.has(c.title)) return;
       const it = { kind:"comp", ci };
@@ -796,7 +819,21 @@ function render(){
   const pct = pos / queue.length * 100;
   let title="", author="", cls="verse", body="", promptHTML="", revealHTML="";
 
-  if(it.kind === "comp"){
+  if(it.kind === "word"){
+    const w = WORDS[it.wi];
+    cls = "prose";
+    title = w.src === "课本" ? "课本注音" : (w.src === "成语" ? "成语" : "常用词");
+    if(w.ask === "写"){
+      promptHTML = '<div class="prompt">看拼音，写词语</div>';
+      body = '<div class="pytop">'+esc(w.py)+'</div>'
+           + (shown ? renderHard(w.w) : '<span class="blank" style="width:'+(w.w.length*1.25)+'em">&nbsp;</span>');
+    }else{
+      // 问读音的时候，字就得是光秃秃的——难字表里带着拼音，一渲染就把答案漏了
+      promptHTML = '<div class="prompt">这个词怎么读？</div>';
+      body = (shown ? renderHard(w.w) : esc(w.w))
+           + '<div class="pybot">'+(shown ? esc(w.py) : '<span class="blank" style="width:7em">&nbsp;</span>')+'</div>';
+    }
+  }else if(it.kind === "comp"){
     const c = COMP[it.ci];
     title = c.title;
     promptHTML = '<div class="prompt">'+esc(c.prompt)+'</div>';
@@ -832,7 +869,7 @@ function render(){
     }
   }
 
-  const showSrc = shown || it.kind === "comp" || it.kind === "note";
+  const showSrc = shown || it.kind === "comp" || it.kind === "note" || it.kind === "word";
 
   card.innerHTML =
     '<div class="meter">'+
@@ -840,7 +877,9 @@ function render(){
       '<div class="bar"><span style="width:'+pct+'%"></span></div>'+
       '<button class="star" id="star" aria-pressed="'+marked+'" title="标记这题">'+(marked?"★":"☆")+'</button>'+
     '</div>'+
-    '<div class="source'+(showSrc?"":" hidden")+'">'+(title?'《'+esc(title)+'》':'')+(author?'　'+esc(author):'')+'</div>'+
+    '<div class="source'+(showSrc?"":" hidden")+'">'
+      + (title ? (it.kind === "word" ? esc(title) : '《'+esc(title)+'》') : '')
+      + (author?'　'+esc(author):'')+'</div>'+
     promptHTML+
     '<div class="text '+cls+'">'+body+'</div>'+
     (it.kind === "note" && !shown ? '<div class="ask">加点的字，在这里作什么讲？</div>' : '')+
@@ -1009,6 +1048,8 @@ function pickSummary(){
 
 function syncFields(){
   const reading = type === "read";
+  $("openPicker").closest(".picker").style.display =
+    (type === "word") ? "none" : "";
   $("densityField").style.display = type === "sentence" ? "" : "none";
   $("filterField").style.display  = (type === "char" || reading) ? "none" : "";
   for(const id of ["order", "count"])
