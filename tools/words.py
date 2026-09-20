@@ -315,16 +315,21 @@ def idiom_cite(derivation):
 def load_hand():
     """自拟释义：两本词典都查不着的，人工写在这张表里。
 
-    和 hardchars.tsv 一样是本人工账：脚本只读不写，重跑不会冲掉。"""
+    四列：词、释义、例句（可空）、拼音订正（可空）。和 hardchars.tsv 一样是
+    本人工账，脚本只读不写，重跑不会冲掉。
+
+    拼音订正是给机器注错音、又确实该收的词留的口子：「岑参」诗人名里的
+    「参」读 shēn，pypinyin 按常用音注成 cān，只能人工按住。"""
     out = {}
     if not os.path.exists(HAND):
         return out
     for line in open(HAND, encoding="utf-8"):
         if line.startswith("#") or "\t" not in line:
             continue
-        c = line.rstrip("\n").split("\t")
-        if len(c) >= 2 and c[0].strip():
-            out[c[0].strip()] = (c[1].strip(), c[2].strip() if len(c) > 2 else "")
+        c = [x.strip() for x in line.rstrip("\n").split("\t")]
+        c += [""] * (4 - len(c))
+        if c[0]:
+            out[c[0]] = (c[1], c[2], c[3])
     return out
 
 
@@ -443,6 +448,7 @@ def main():
             return ex, where
         if w in hand and hand[w][1]:
             return hand[w][1], "自拟"
+
         return "", ""
 
     order = sorted(rows, key=lambda w: (-full.count(w), w))
@@ -452,6 +458,8 @@ def main():
                 "\t 例句 \t 例句出处 \t 课本里出现次数\n")
         for w in order:
             py, src, where = rows[w]
+            if w in hand and hand[w][2]:
+                py = hand[w][2]              # 人工按住机器注错的音
             gloss, gsrc = gloss_of(w)
             ex, exsrc = example_of(w)
             if not gloss:
@@ -468,8 +476,10 @@ def main():
     print("  例句　%d 条（课本古诗文原句 %d）"
           % (sum(1 for w in rows if example_of(w)[0]),
              sum(1 for w in rows if pick_example(w, bank)[2] == 0)))
+    path = os.path.join(HERE, "extract", "缺释义.txt")
+    if not miss and os.path.exists(path):
+        os.remove(path)          # 清掉上一轮的，免得看着旧账当新账
     if miss:
-        path = os.path.join(HERE, "extract", "缺释义.txt")
         with open(path, "w", encoding="utf-8") as f:
             f.write("# 两本词典都查不着的词。人工写进 tools/释义-自拟.tsv：\n")
             f.write("# 词 \t 释义 \t 例句（可空）\n")
