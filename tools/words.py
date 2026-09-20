@@ -120,6 +120,16 @@ def clean_def(text):
     t = text.replace("﹐", "，").replace("﹑", "、")
     t = t.replace("﹔", "；").replace("﹔", "；").replace("\n", " ")
     t = re.sub(r"[〈〔\[][^〉〕\]]{0,6}[〉〕\]]", "", t)      # 〈动〉〈名〉这类词性标记
+    # 「亦作某某；正经释义」——前半截是异体写法，不是释义，砍掉。
+    # 但整条就只有这一句的（「咔嚓：同‘喀嚓’。」）不能砍，砍完什么都不剩
+    cut = re.sub(r"^(亦作|也作|同)[^；。，]{1,8}[；。]\s*", "", t)
+    if cut.strip():
+        t = cut
+    # 原书的例句分隔符和代词符号（｜～◇ㄧ），后面跟的是例句不是释义；
+    # 『∨ 是 OCR 把标点认坏了。一律在这儿收口，只留前半截
+    m = re.search(r"[｜～◇ㄧ『∨]", t)
+    if m:
+        t = t[:m.start()]
     parts = re.split(r"\s*\d+[\.．]\s*", t)
     parts = [x.strip().rstrip("。") for x in parts if x.strip()]
     t = "；".join(parts[:2]) if parts else ""
@@ -480,14 +490,18 @@ def main():
     bank = sentence_bank()
 
     def gloss_of(w):
+        # 自拟表的释义列是**人工覆盖**：写了就压过三本词典，留空才走词典。
+        # 词典里有一批条目是在打转（「马厩→见马厩」「橐驼→即骆驼」），查了
+        # 等于没查，只能人工重写；既然人写了，就该以人写的为准——和难字
+        # 「data.js 是权威、tsv 是账本」一个道理。
+        if w in hand and hand[w][0]:
+            return hand[w][0], "自拟"
         if w in notes:
             return notes[w][0], "课本"
         if w in idioms:
             return clean_def(idioms[w]["explanation"]), "成语"
         if w in cidian:
             return clean_def(cidian[w]), "新华"
-        if w in hand:
-            return hand[w][0], "自拟"
         return "", ""
 
     def example_of(w):
@@ -526,6 +540,10 @@ def main():
             f.write("%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%d\n"
                     % (marked, py.replace("ɡ", "g"), kind(w, src), src,
                        gloss, gsrc, ex, exsrc or where, full.count(w)))
+    over = [w for w in rows if w in hand and hand[w][0] and w in notes]
+    if over:
+        print("  注意：%d 条自拟释义压过了课本注释 → %s"
+              % (len(over), "、".join(over[:8])))
     bad = check_hand(hand)
     if bad:
         print("  自拟例句有 %d 处要看：" % len(bad))
