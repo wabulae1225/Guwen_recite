@@ -140,7 +140,7 @@ window.DATA = {
 三步管道，产物落在 `extract/` 下：
 
 ```
-五册 PDF
+五册 PDF（`textbooks/`）
   │ tools/pdfdump.py    按字体切版面，一页一份 JSON
   ↓
 extract/raw/*.json      正文/注释/学习提示/篇名/插图说明各归各位
@@ -228,5 +228,5 @@ window.USER = {
 ## 五、手机单文件版
 
 `merge.py` 把 `index.html` + `data.js` + `user.js` 内联成一个
-`古诗文默写_单文件.html`（安卓某些文件管理器读不到同目录文件时用）。
+`dist/古诗文默写_单文件.html`（安卓某些文件管理器读不到同目录文件时用）。
 **改完 `data.js` 要重跑一次 `merge.py`**，否则单文件版还是旧的。

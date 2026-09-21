@@ -25,6 +25,7 @@ import pymupdf
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(HERE, "extract", "raw")
+BOOKDIR = os.path.join(HERE, "textbooks")   # 五本教材 PDF 收在这儿
 
 BOOKS = [
     ("必修上", "普通高中教科书·语文必修 上册.pdf"),
@@ -508,13 +509,13 @@ def main():
     os.makedirs(OUT, exist_ok=True)
     if len(sys.argv) == 3:
         tag, pno = sys.argv[1], int(sys.argv[2])
-        doc = pymupdf.open(os.path.join(HERE, dict(BOOKS)[tag]))
+        doc = pymupdf.open(os.path.join(BOOKDIR, dict(BOOKS)[tag]))
         print(json.dumps(dumppage(doc[pno], pno, tag, load_glyphs()),
                          ensure_ascii=False, indent=1))
         return
     glyphs = load_glyphs()
     for tag, path in BOOKS:
-        doc = pymupdf.open(os.path.join(HERE, path))
+        doc = pymupdf.open(os.path.join(BOOKDIR, path))
         pages = [dumppage(doc[i], i, tag, glyphs) for i in range(doc.page_count)]
         dst = os.path.join(OUT, tag + ".json")
         with open(dst, "w", encoding="utf-8") as f:

@@ -9,7 +9,7 @@
 用法（在三个文件所在的目录里跑）：
     python3 merge.py
 输出：
-    古诗文默写_单文件.html
+    dist/古诗文默写_单文件.html
 
 每次改完 data.js 重跑一次即可。user.js 不存在也能跑。
 """
@@ -45,9 +45,11 @@ def main():
     out = pattern.sub(lambda m: inline, html, count=1)
 
     name = "古诗文默写_单文件.html"
-    with io.open(os.path.join(HERE, name), "w", encoding="utf-8") as f:
+    dist = os.path.join(HERE, "dist")          # 生成物单独放，别和源码混在一起
+    if not os.path.isdir(dist): os.makedirs(dist)
+    with io.open(os.path.join(dist, name), "w", encoding="utf-8") as f:
         f.write(out)
-    print("已生成 %s（%.1f KB）" % (name, len(out.encode("utf-8")) / 1024.0))
+    print("已生成 dist/%s（%.1f KB）" % (name, len(out.encode("utf-8")) / 1024.0))
     print("把它单独拷到手机上就能用。注意：单文件版导出的 user.js 需要再跑一次合并才会生效。")
 
 if __name__ == "__main__":
