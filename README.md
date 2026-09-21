@@ -103,6 +103,44 @@ math/               数学模块（新建）
 
 ---
 
+## 三点五、装到手机上 / 上线（PWA）
+
+从 **v0.26** 起，这套东西是一个 **PWA**——用网址打开之后可以「添加到主屏幕」，
+之后就像个 App 一样点开，**断网照样用，有新版本会自己提示更新**。
+
+### 现在就能用的两种方式
+
+| 怎么用 | 要什么 | 更新怎么办 |
+|---|---|---|
+| **双击本地文件** | 什么都不要 | 我改完你重新拉一份 |
+| **PWA（推荐）** | 一个 https 网址 | **自动**——我推新版，你下次打开就有，不用重装 |
+
+PWA 的关键零件在仓库根目录：`manifest.webmanifest`（装机信息）、`sw.js`（离线缓存和
+更新）、`pwa.js`（注册 + 弹更新提示）、`icons/`（图标）。
+**双击本地文件打开时这套东西会静默跳过**，页面照常工作，不受影响。
+
+### 上线还差一步，开关在使用者手里
+
+仓库**现在是私有的**，而免费账号的 GitHub Pages **只对公开仓库开放**。所以三选一：
+
+1. **把仓库设为公开** → 仓库 Settings → Pages → Source 选「GitHub Actions」，
+   `.github/workflows/pages.yml` 就会自动发布，网址是
+   `https://wabulae1225.github.io/Guwen_recite/`。
+2. **保持私有，换个地方托管**（Cloudflare Pages / Netlify / Vercel 都免费，
+   都支持从私有仓库自动部署）。
+3. **先不上线**，PWA 的东西已经备好，哪天想上随时能上。
+
+> **公开之前要想一件事**：`chinese/data.js` 里是人教版课本的正文和注释，
+> **一字不改**地抄下来的；仓库里还放着五本教材 PDF。所以
+> `.github/workflows/pages.yml` **只发布程序和语料，不发布 PDF**，
+> 并且带了 `robots.txt` 不让搜索引擎收录。要不要公开，由使用者定。
+
+### 改完代码记得
+
+`sw.js` 顶上有个 `VERSION`，**改完代码把它加一**，否则浏览器可能还在用旧缓存。
+
+---
+
 ## 四、两类文档，别搞混
 
 - **历时**（发生过什么）→ [`LOG.md`](LOG.md)，正序、只追加、旧条目永不删改。
@@ -129,6 +167,11 @@ math/               数学模块（新建）
 
 ```
 index.html                  科目选择壳
+manifest.webmanifest        PWA：装机信息
+sw.js                       PWA：离线缓存与更新（改代码记得把 VERSION 加一）
+pwa.js                      PWA：注册 + 「有新版本」提示
+icons/  favicon.ico         图标
+.github/workflows/pages.yml 上线配置（只发布程序，不发布 PDF）
 chinese/  index.html        语文页面（程序）
           data.js           语文语料（生成物，别手改）
           user.js           语文的标记和错题存档
