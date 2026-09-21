@@ -19,7 +19,8 @@ math/               数学模块（新建）
 ```
 
 手机上如果提示读不到数据文件，是某些安卓文件管理器给的不是正常本地路径，
-在电脑上跑一次 `python3 chinese/merge.py`，把生成的单文件版拷过去用。
+在电脑上跑一次 `python3 chinese/merge.py`，把生成的 `chinese/dist/` 里那个单文件版拷过去用。
+（上线之后就不用这一招了，直接开网址——见第三点五节。）
 
 ---
 
@@ -119,21 +120,38 @@ PWA 的关键零件在仓库根目录：`manifest.webmanifest`（装机信息）
 更新）、`pwa.js`（注册 + 弹更新提示）、`icons/`（图标）。
 **双击本地文件打开时这套东西会静默跳过**，页面照常工作，不受影响。
 
-### 上线还差一步，开关在使用者手里
+### 上线：两条路，先看清代价
 
-仓库**现在是私有的**，而免费账号的 GitHub Pages **只对公开仓库开放**。所以三选一：
+想要一个网址，有两条路。**关键差别不在难度，在于「仓库要不要公开」。**
 
-1. **把仓库设为公开** → 仓库 Settings → Pages → Source 选「GitHub Actions」，
-   `.github/workflows/pages.yml` 就会自动发布，网址是
-   `https://wabulae1225.github.io/Guwen_recite/`。
-2. **保持私有，换个地方托管**（Cloudflare Pages / Netlify / Vercel 都免费，
-   都支持从私有仓库自动部署）。
-3. **先不上线**，PWA 的东西已经备好，哪天想上随时能上。
+#### 路 A（推荐）：仓库保持私有，用 Cloudflare Pages
 
-> **公开之前要想一件事**：`chinese/data.js` 里是人教版课本的正文和注释，
-> **一字不改**地抄下来的；仓库里还放着五本教材 PDF。所以
-> `.github/workflows/pages.yml` **只发布程序和语料，不发布 PDF**，
-> 并且带了 `robots.txt` 不让搜索引擎收录。要不要公开，由使用者定。
+免费，支持**从私有仓库自动部署**，推一次代码自动更新，带 https。
+`.github/workflows/pages.yml` 用不上，改在 Cloudflare 后台配置构建输出即可。
+
+**好处：什么都不公开**，教材 PDF、课本正文都留在私有仓库里，只有编译好的页面在网上，
+而且网址不公开就基本没人找得到（另外还带了 `robots.txt` 不让搜索引擎收录）。
+
+#### 路 B：把仓库设为公开，用 GitHub Pages
+
+免费账号的 GitHub Pages **只对公开仓库开放**，所以走这条就必须公开。
+公开后 Settings → Pages → Source 选「GitHub Actions」，
+`pages.yml` 会自动发布到 `https://wabulae1225.github.io/Guwen_recite/`。
+
+> #### ⚠️ 走路 B 之前必须知道的两件事（不可逆）
+>
+> **一、仓库里有五本人教版教科书 PDF（31 MB），它们在 git 历史里。**
+> 公开仓库 = 公开**全部历史**。所以即使现在把 PDF 删掉再公开，
+> **历史里那几份照样能被下载**。要真正抹掉，得用 `git filter-repo` 改写历史。
+>
+> **二、改写历史会把所有 commit 号换掉。** 而 `LOG.md` 里**大量引用 commit 号**
+> （版本速查表整张表都是），改写之后那些引用**会全部失效**——
+> 而日志正是这个项目最看重的东西。
+>
+> 另外 `chinese/data.js` 是人教版课本正文和注释**一字不改**抄下来的。
+> 发布配置已经做到「只发程序和语料、不发 PDF」，但**仓库本身公开的话，PDF 仍在历史里**。
+>
+> **要不要公开，由使用者定。** 只是这个决定做完就收不回来了，所以摆在这儿。
 
 ### 改完代码记得
 
@@ -175,7 +193,9 @@ icons/  favicon.ico         图标
 chinese/  index.html        语文页面（程序）
           data.js           语文语料（生成物，别手改）
           user.js           语文的标记和错题存档
-          merge.py          并成手机单文件版
+          merge.py          并成手机单文件版（产物进 dist/）
+          dist/             生成物：手机用的单文件版
+          textbooks/        五本教材 PDF（解析的源材料，不发布）
           tools/            从 PDF 生成语料的脚本和人工维护的表
           extract/          中间产物，人工校对看这个
 math/     index.html        数学页面（交互）
