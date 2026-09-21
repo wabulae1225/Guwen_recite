@@ -1,0 +1,22 @@
+{
+  "name": "学科复习",
+  "short_name": "学科复习",
+  "description": "碎片时间拿手机练：古诗文默写、数学速算。离线可用。",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#E8EBE6",
+  "theme_color": "#9E2B25",
+  "lang": "zh-CN",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "语文 · 古诗文默写", "url": "chinese/index.html" },
+    { "name": "数学 · 速算", "url": "math/index.html" }
+  ]
+}

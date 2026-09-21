@@ -1,0 +1,69 @@
+# 把应用发布到 GitHub Pages。
+#
+# 要用起来，得先在仓库 Settings → Pages 里把 Source 选成「GitHub Actions」。
+# 注意：免费账号的 Pages 只对**公开仓库**开放；这个仓库现在是私有的，
+# 所以这份配置是备好的，开关在使用者手里（见 README「上线」一节）。
+#
+# 只发布程序和语料，**不发布那五本教科书 PDF，也不发布 tools/ 和 extract/**：
+# 一是没必要（网页用不着），二是体积，三是教材 PDF 不该公开挂出去。
+
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:      # 也可以在 Actions 页面手动点一下
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 挑出要发布的文件
+        run: |
+          set -e
+          mkdir -p _site/chinese _site/math _site/icons
+
+          # 根目录：科目壳和 PWA 三件套
+          cp index.html pwa.js sw.js manifest.webmanifest favicon.ico _site/
+          cp icons/*.png _site/icons/
+
+          # 语文：只要页面和语料，不要 PDF、tools、extract、单文件版
+          cp chinese/index.html chinese/data.js _site/chinese/
+          cp chinese/user.js _site/chinese/ 2>/dev/null || \
+            echo 'window.USER = { marks: [], wrong: {}, weak: {} };' > _site/chinese/user.js
+
+          # 数学：页面和题目生成器
+          cp math/index.html math/engine.js _site/math/
+
+          # 不让搜索引擎收录——这是个人复习用的，不是要公开传播的东西
+          printf 'User-agent: *\nDisallow: /\n' > _site/robots.txt
+
+          echo "===== 将要发布的内容 ====="
+          find _site -type f | sort
+          echo "===== 合计 ====="
+          du -sh _site
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
