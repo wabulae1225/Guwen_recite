@@ -19,7 +19,8 @@ math/               数学模块（新建）
 ```
 
 手机上如果提示读不到数据文件，是某些安卓文件管理器给的不是正常本地路径，
-在电脑上跑一次 `python3 chinese/merge.py`，把生成的单文件版拷过去用。
+在电脑上跑一次 `python3 chinese/merge.py`，把生成的 `chinese/dist/` 里那个单文件版拷过去用。
+（上线之后就不用这一招了，直接开网址——见第三点五节。）
 
 ---
 
@@ -103,6 +104,51 @@ math/               数学模块（新建）
 
 ---
 
+## 三点五、装到手机上 / 上线（PWA）
+
+从 **v0.26** 起，这套东西是一个 **PWA**——用网址打开之后可以「添加到主屏幕」，
+之后就像个 App 一样点开，**断网照样用，有新版本会自己提示更新**。
+
+### 现在就能用的两种方式
+
+| 怎么用 | 要什么 | 更新怎么办 |
+|---|---|---|
+| **双击本地文件** | 什么都不要 | 我改完你重新拉一份 |
+| **PWA（推荐）** | 一个 https 网址 | **自动**——我推新版，你下次打开就有，不用重装 |
+
+PWA 的关键零件在仓库根目录：`manifest.webmanifest`（装机信息）、`sw.js`（离线缓存和
+更新）、`pwa.js`（注册 + 弹更新提示）、`icons/`（图标）。
+**双击本地文件打开时这套东西会静默跳过**，页面照常工作，不受影响。
+
+### 上线：GitHub Pages（使用者已定）
+
+**使用者决定把仓库设为公开，走 GitHub Pages。** 步骤：
+
+1. 仓库 **Settings → General → 最底下 Danger Zone → Change visibility → 改成 Public**
+2. 把开发分支合进 `main`（`pages.yml` 监听的是 `main` 的推送）
+3. **Settings → Pages → Source 选「GitHub Actions」**
+4. 等 Actions 跑完，网址是 `https://wabulae1225.github.io/Guwen_recite/`
+
+手机浏览器打开这个网址 → 安卓会弹「装上」，iOS 走「共享 → 添加到主屏幕」。
+装好之后**断网能用，我推新版你下次打开就有**，不用再拷副本。
+
+**发布的内容**由 `.github/workflows/pages.yml` 挑：根目录的科目壳和 PWA 四件套、
+`chinese/{index.html,data.js,user.js}`、`math/`，**不含**
+`chinese/textbooks/`（五本教材 PDF）、`tools/`、`extract/`、`dist/`。
+产物约 1 MB，另带 `robots.txt` 不让搜索引擎收录。
+
+> **记录一下公开意味着什么**（使用者已知情并决定照做）：公开仓库等于公开全部 git 历史，
+> 所以 `chinese/textbooks/` 里那五本人教版教科书 PDF、以及一字不改抄下来的
+> `chinese/data.js`，**在仓库里是可被公开访问的**——发布配置只管网页产物，管不着仓库本身。
+> 不想这样的话有两条别的路：改写历史剔除 PDF（会把所有 commit 号换掉，`LOG.md` 里的
+> 引用会失效），或者仓库保持私有、改用 Cloudflare Pages 部署。**当前选择是直接公开。**
+
+### 改完代码记得
+
+`sw.js` 顶上有个 `VERSION`，**改完代码把它加一**，否则浏览器可能还在用旧缓存。
+
+---
+
 ## 四、两类文档，别搞混
 
 - **历时**（发生过什么）→ [`LOG.md`](LOG.md)，正序、只追加、旧条目永不删改。
@@ -129,10 +175,17 @@ math/               数学模块（新建）
 
 ```
 index.html                  科目选择壳
+manifest.webmanifest        PWA：装机信息
+sw.js                       PWA：离线缓存与更新（改代码记得把 VERSION 加一）
+pwa.js                      PWA：注册 + 「有新版本」提示
+icons/  favicon.ico         图标
+.github/workflows/pages.yml 上线配置（只发布程序，不发布 PDF）
 chinese/  index.html        语文页面（程序）
           data.js           语文语料（生成物，别手改）
           user.js           语文的标记和错题存档
-          merge.py          并成手机单文件版
+          merge.py          并成手机单文件版（产物进 dist/）
+          dist/             生成物：手机用的单文件版
+          textbooks/        五本教材 PDF（解析的源材料，不发布）
           tools/            从 PDF 生成语料的脚本和人工维护的表
           extract/          中间产物，人工校对看这个
 math/     index.html        数学页面（交互）
