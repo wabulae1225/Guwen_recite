@@ -120,38 +120,28 @@ PWA 的关键零件在仓库根目录：`manifest.webmanifest`（装机信息）
 更新）、`pwa.js`（注册 + 弹更新提示）、`icons/`（图标）。
 **双击本地文件打开时这套东西会静默跳过**，页面照常工作，不受影响。
 
-### 上线：两条路，先看清代价
+### 上线：GitHub Pages（使用者已定）
 
-想要一个网址，有两条路。**关键差别不在难度，在于「仓库要不要公开」。**
+**使用者决定把仓库设为公开，走 GitHub Pages。** 步骤：
 
-#### 路 A（推荐）：仓库保持私有，用 Cloudflare Pages
+1. 仓库 **Settings → General → 最底下 Danger Zone → Change visibility → 改成 Public**
+2. 把开发分支合进 `main`（`pages.yml` 监听的是 `main` 的推送）
+3. **Settings → Pages → Source 选「GitHub Actions」**
+4. 等 Actions 跑完，网址是 `https://wabulae1225.github.io/Guwen_recite/`
 
-免费，支持**从私有仓库自动部署**，推一次代码自动更新，带 https。
-`.github/workflows/pages.yml` 用不上，改在 Cloudflare 后台配置构建输出即可。
+手机浏览器打开这个网址 → 安卓会弹「装上」，iOS 走「共享 → 添加到主屏幕」。
+装好之后**断网能用，我推新版你下次打开就有**，不用再拷副本。
 
-**好处：什么都不公开**，教材 PDF、课本正文都留在私有仓库里，只有编译好的页面在网上，
-而且网址不公开就基本没人找得到（另外还带了 `robots.txt` 不让搜索引擎收录）。
+**发布的内容**由 `.github/workflows/pages.yml` 挑：根目录的科目壳和 PWA 四件套、
+`chinese/{index.html,data.js,user.js}`、`math/`，**不含**
+`chinese/textbooks/`（五本教材 PDF）、`tools/`、`extract/`、`dist/`。
+产物约 1 MB，另带 `robots.txt` 不让搜索引擎收录。
 
-#### 路 B：把仓库设为公开，用 GitHub Pages
-
-免费账号的 GitHub Pages **只对公开仓库开放**，所以走这条就必须公开。
-公开后 Settings → Pages → Source 选「GitHub Actions」，
-`pages.yml` 会自动发布到 `https://wabulae1225.github.io/Guwen_recite/`。
-
-> #### ⚠️ 走路 B 之前必须知道的两件事（不可逆）
->
-> **一、仓库里有五本人教版教科书 PDF（31 MB），它们在 git 历史里。**
-> 公开仓库 = 公开**全部历史**。所以即使现在把 PDF 删掉再公开，
-> **历史里那几份照样能被下载**。要真正抹掉，得用 `git filter-repo` 改写历史。
->
-> **二、改写历史会把所有 commit 号换掉。** 而 `LOG.md` 里**大量引用 commit 号**
-> （版本速查表整张表都是），改写之后那些引用**会全部失效**——
-> 而日志正是这个项目最看重的东西。
->
-> 另外 `chinese/data.js` 是人教版课本正文和注释**一字不改**抄下来的。
-> 发布配置已经做到「只发程序和语料、不发 PDF」，但**仓库本身公开的话，PDF 仍在历史里**。
->
-> **要不要公开，由使用者定。** 只是这个决定做完就收不回来了，所以摆在这儿。
+> **记录一下公开意味着什么**（使用者已知情并决定照做）：公开仓库等于公开全部 git 历史，
+> 所以 `chinese/textbooks/` 里那五本人教版教科书 PDF、以及一字不改抄下来的
+> `chinese/data.js`，**在仓库里是可被公开访问的**——发布配置只管网页产物，管不着仓库本身。
+> 不想这样的话有两条别的路：改写历史剔除 PDF（会把所有 commit 号换掉，`LOG.md` 里的
+> 引用会失效），或者仓库保持私有、改用 Cloudflare Pages 部署。**当前选择是直接公开。**
 
 ### 改完代码记得
 

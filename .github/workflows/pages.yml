@@ -1,8 +1,7 @@
 # 把应用发布到 GitHub Pages。
 #
-# 要用起来，得先在仓库 Settings → Pages 里把 Source 选成「GitHub Actions」。
-# 注意：免费账号的 Pages 只对**公开仓库**开放；这个仓库现在是私有的，
-# 所以这份配置是备好的，开关在使用者手里（见 README「上线」一节）。
+# 要用起来：仓库设为 Public，再到 Settings → Pages 把 Source 选成「GitHub Actions」。
+# （免费账号的 Pages 只对公开仓库开放。使用者已决定公开，见 README「上线」一节。）
 #
 # 只发布程序和语料，**不发布 chinese/textbooks/ 里那五本教科书 PDF，
 # 也不发布 tools/、extract/、dist/**：
