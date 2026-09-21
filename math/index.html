@@ -91,6 +91,25 @@ select{background:#fff;border:1px solid var(--rule);border-radius:2px;padding:6p
 .q{font-size:25px;line-height:1.5;font-family:var(--serif);letter-spacing:.02em;
   word-break:break-word}
 .q sup{font-size:.62em}
+
+/* ---- 公式排版：不引库，纯 CSS 拼出分数、根号、向量箭头 ----
+   engine.js 里的 F.* 生成这些结构。将来若换成 KaTeX，
+   只需重写 F.* 的实现，题库内容一个字都不用改。 */
+.fr{display:inline-block;vertical-align:middle;text-align:center;margin:0 .16em}
+.fr>span{display:block;padding:0 .3em;line-height:1.25}
+.fr>span:first-child{border-bottom:1px solid currentColor}
+.sq{display:inline-block;white-space:nowrap}
+.sq>b{font-weight:inherit;border-top:1px solid currentColor;
+  padding:.08em .16em 0 .08em;margin-left:-.06em}
+.vc{position:relative;display:inline-block;padding-top:.18em}
+.vc::before{content:"\2192";position:absolute;top:-.62em;left:0;right:0;
+  font-size:.64em;line-height:1;text-align:center}
+.ab{display:inline-block;padding:0 .04em;border-left:1px solid currentColor;
+  border-right:1px solid currentColor}
+.ab>i{font-style:normal;padding:0 .16em}
+.nm{display:inline-block;padding:0 .04em;
+  border-left:3px double currentColor;border-right:3px double currentColor}
+.nm>i{font-style:normal;padding:0 .18em}
 .ans{margin-top:18px;border-top:1px dashed var(--rule);padding-top:15px}
 .ans .lab{font-size:11.5px;color:var(--ink-faint);letter-spacing:.08em;margin-bottom:6px}
 .ans .val{font-size:23px;font-family:var(--serif);color:var(--cinnabar);line-height:1.5;
@@ -436,12 +455,16 @@ function judge(kind){
   if(!shown || judged) return;
   judged = kind;
   tally[kind] += 1; tally.total += 1;
+  if(kind === "ok"){
+    next();                         /* 答对不打扰：直接下一题，不用再点一下 */
+    return;
+  }
   if(kind === "bad"){
     render();                       /* 出输入框，等你填或直接下一题 */
     const el = $("myans"); if(el) el.focus();
   }else{
-    if(kind === "non") recordWrong(queue[pos], "non", "");
-    render();
+    recordWrong(queue[pos], "non", "");
+    render();                       /* 没算出来：停一下，让你把答案和解析看完 */
   }
 }
 
