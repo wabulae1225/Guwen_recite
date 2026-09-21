@@ -1,0 +1,597 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>数学速算</title>
+
+<!-- 题目生成器，必须和本文件放在同一个目录里 -->
+<script src="engine.js"></script>
+
+<style>
+:root{
+  --paper:#E8EBE6; --paper-card:#F3F5F1;
+  --ink:#23241F; --ink-soft:#6A6E66; --ink-faint:#9BA096;
+  --rule:#C6CABF; --cinnabar:#9E2B25; --cinnabar-soft:#C4726C;
+  --moss:#3F6B52; --gold:#8A6A1F;
+  --sans:"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans SC",system-ui,sans-serif;
+  --serif:"Songti SC","STSong","Noto Serif SC","Source Han Serif SC","SimSun",serif;
+  --mono:"SF Mono","Menlo","Consolas","Noto Sans Mono",monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--paper);color:var(--ink);font-family:var(--sans);
+  font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased}
+.wrap{max-width:740px;margin:0 auto;padding:24px 18px 70px}
+
+header{display:flex;align-items:center;gap:11px;margin-bottom:18px}
+.seal{width:32px;height:32px;flex:none;background:var(--cinnabar);color:#F3F5F1;
+  font-family:var(--serif);font-size:19px;line-height:32px;text-align:center;border-radius:2px}
+h1{font-family:var(--serif);font-size:20px;font-weight:600;margin:0;letter-spacing:.08em}
+header .home{margin-left:auto;color:var(--ink-soft);font-size:12.5px;text-decoration:none}
+header .home:hover{color:var(--cinnabar)}
+
+/* 大类：十个，窄屏放不下就横向滚动 */
+.cats{display:flex;gap:0;border:1px solid var(--rule);border-radius:3px;
+  overflow-x:auto;margin-bottom:12px;-webkit-overflow-scrolling:touch}
+.cats button{flex:0 0 auto;background:var(--paper-card);border:none;
+  border-right:1px solid var(--rule);padding:11px 14px;cursor:pointer;
+  font-family:var(--sans);font-size:14px;color:var(--ink-soft);white-space:nowrap}
+.cats button:last-child{border-right:none}
+.cats button[aria-pressed="true"]{background:var(--ink);color:var(--paper-card)}
+.cats button[disabled]{color:var(--ink-faint);cursor:not-allowed;opacity:.6}
+.cats button:focus-visible{outline:2px solid var(--cinnabar);outline-offset:-3px}
+
+.opts{background:var(--paper-card);border:1px solid var(--rule);border-radius:3px;
+  padding:13px 15px;margin-bottom:16px}
+.optrow{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:flex-end}
+.field{display:flex;flex-direction:column;gap:4px}
+.field label{font-size:12px;color:var(--ink-soft)}
+select,input[type=text]{background:#fff;border:1px solid var(--rule);border-radius:2px;
+  padding:6px 8px;font-family:inherit;font-size:14px;color:var(--ink)}
+select{min-width:104px}
+.optrow .spacer{flex:1}
+.btn{background:var(--paper-card);border:1px solid var(--rule);border-radius:2px;
+  padding:7px 13px;cursor:pointer;font-family:inherit;font-size:14px;color:var(--ink)}
+.btn:hover{border-color:var(--cinnabar);color:var(--cinnabar)}
+.btn.primary{background:var(--ink);color:var(--paper-card);border-color:var(--ink)}
+.btn.primary:hover{background:var(--cinnabar);border-color:var(--cinnabar);color:#fff}
+.linkbtn{background:none;border:none;color:var(--ink-soft);cursor:pointer;
+  text-decoration:underline;text-underline-offset:3px;font-size:13px;font-family:inherit;padding:5px 0}
+.linkbtn:hover{color:var(--cinnabar)}
+.picker{margin-top:12px;border-top:1px solid var(--rule);padding-top:11px;
+  display:flex;align-items:center;gap:11px;flex-wrap:wrap}
+.picker .sum{color:var(--ink-soft);font-size:12.5px}
+
+/* 细类浮层 */
+.overlay{position:fixed;inset:0;background:rgba(35,36,31,.42);z-index:50;
+  display:flex;align-items:center;justify-content:center;padding:16px}
+.overlay[hidden]{display:none}   /* display:flex 会盖掉 hidden，得明写一条 */
+.sheet{background:var(--paper);border:1px solid var(--rule);border-radius:4px;
+  width:100%;max-width:520px;max-height:82vh;display:flex;flex-direction:column}
+.sheethead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  padding:13px 15px;border-bottom:1px solid var(--rule)}
+.sheethead b{font-family:var(--serif);font-size:16px;letter-spacing:.06em}
+.sheetbody{overflow-y:auto;padding:6px 0}
+.subrow{display:flex;align-items:center;gap:9px;padding:9px 15px;cursor:pointer}
+.subrow:hover{background:var(--paper-card)}
+.subrow input{width:15px;height:15px;accent-color:var(--cinnabar);flex:none}
+.subrow .nm{flex:1}
+
+/* 题卡 */
+.card{background:var(--paper-card);border:1px solid var(--rule);border-radius:3px;
+  padding:26px 20px;margin-bottom:14px;min-height:150px;
+  display:flex;flex-direction:column;justify-content:center}
+.where{color:var(--ink-faint);font-size:12px;letter-spacing:.04em;margin-bottom:14px;
+  text-align:center}
+.q{font-family:var(--mono);font-size:27px;line-height:1.5;text-align:center;
+  letter-spacing:.01em;word-break:break-word}
+.q sup{font-size:.62em}
+.ans{margin-top:20px;padding-top:17px;border-top:1px dashed var(--rule);text-align:center}
+.ans .lab{color:var(--ink-faint);font-size:11.5px;letter-spacing:.1em;margin-bottom:7px}
+.ans .v{font-family:var(--mono);font-size:25px;color:var(--cinnabar);line-height:1.5;
+  word-break:break-word}
+.ans .note{color:var(--ink-soft);font-size:12.5px;margin-top:11px;line-height:1.6;
+  font-family:var(--sans)}
+.timer{text-align:center;color:var(--ink-faint);font-size:12px;margin-top:12px;
+  font-variant-numeric:tabular-nums}
+
+.acts{display:flex;gap:9px}
+.acts button{flex:1;padding:13px 6px;font-size:14.5px}
+.grade{display:none;gap:9px}
+.grade.on{display:flex}
+.grade .ok{border-color:var(--moss);color:var(--moss)}
+.grade .ok:hover{background:var(--moss);color:#fff}
+.grade .bad{border-color:var(--cinnabar);color:var(--cinnabar)}
+.grade .bad:hover{background:var(--cinnabar);color:#fff}
+.grade .none{border-color:var(--ink-faint);color:var(--ink-soft)}
+.grade .none:hover{background:var(--ink-soft);color:#fff}
+
+/* 填「我算成了」 */
+.mybox{background:var(--paper-card);border:1px solid var(--cinnabar-soft);border-radius:3px;
+  padding:13px 15px;margin-bottom:14px}
+.mybox[hidden]{display:none}
+.mybox .t{font-size:13px;color:var(--ink-soft);margin-bottom:9px}
+.mybox .r{display:flex;gap:9px}
+.mybox input{flex:1;font-family:var(--mono)}
+
+.bar{display:flex;align-items:center;gap:14px;color:var(--ink-soft);font-size:12.5px;
+  margin-bottom:10px;flex-wrap:wrap}
+.bar .spacer{flex:1}
+.bar b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
+
+/* 结束页 */
+.done{background:var(--paper-card);border:1px solid var(--rule);border-radius:3px;
+  padding:24px 20px;text-align:center}
+.done h2{font-family:var(--serif);font-size:19px;margin:0 0 16px;letter-spacing:.06em}
+.stats{display:flex;justify-content:center;gap:26px;flex-wrap:wrap;margin-bottom:18px}
+.stats div{font-size:12.5px;color:var(--ink-soft)}
+.stats b{display:block;font-size:22px;color:var(--ink);font-weight:600;
+  font-variant-numeric:tabular-nums;margin-bottom:2px}
+
+/* 错题本 */
+.list{max-height:none}
+.item{border-bottom:1px solid var(--rule);padding:11px 15px;display:flex;
+  align-items:flex-start;gap:11px}
+.item:last-child{border-bottom:none}
+.item .body{flex:1;min-width:0}
+.item .qq{font-family:var(--mono);font-size:15px;word-break:break-word}
+.item .aa{font-family:var(--mono);font-size:13.5px;color:var(--cinnabar);margin-top:3px}
+.item .meta{color:var(--ink-faint);font-size:11.5px;margin-top:4px}
+.item .meta .mine{color:var(--gold)}
+.empty{color:var(--ink-faint);font-size:13px;padding:22px 15px;text-align:center}
+textarea{width:100%;height:110px;font-family:var(--mono);font-size:12px;
+  border:1px solid var(--rule);border-radius:2px;padding:8px;resize:vertical}
+
+.fatal{background:#fff;border:1px solid var(--cinnabar);border-radius:3px;
+  padding:18px;color:var(--ink);line-height:1.8}
+
+@media(max-width:430px){
+  .wrap{padding:18px 14px 50px}
+  .q{font-size:23px}
+  .ans .v{font-size:21px}
+  .card{padding:20px 14px}
+  .acts button{padding:12px 4px;font-size:13.5px}
+}
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="seal">算</div>
+    <h1>数学速算</h1>
+    <a class="home" href="../index.html">← 换一科</a>
+  </header>
+
+  <div id="app"></div>
+</div>
+
+<script>
+if(!window.MATH){
+  document.getElementById("app").innerHTML =
+    '<div class="fatal"><b>没读到 engine.js。</b><br>'+
+    '请确认 <code>engine.js</code> 和本文件放在<b>同一个目录</b>里，文件名全小写。</div>';
+  throw new Error("engine.js missing");
+}
+
+/* ============ 存储 ============ */
+/* 数学这边只存错题。题目是现场生成的，所以错题存的是「题面 + 答案」的快照，
+   重做时原样端出来，不重新生成——这样不必把生成参数也存一份。
+   （参数化重现留给以后，见 LOG.md v0.24 的「未完成」一节。） */
+const KEY = "math_wrong_v1";
+const store = {
+  get(){ try{ return JSON.parse(localStorage.getItem(KEY)) || []; }catch(e){ return []; } },
+  set(v){ try{ localStorage.setItem(KEY, JSON.stringify(v)); }catch(e){} }
+};
+let wrong = store.get();
+if(!Array.isArray(wrong)) wrong = [];
+
+/* 页面里带的存档（可选，用于换设备）*/
+if(window.MATH_USER && Array.isArray(window.MATH_USER.wrong) && !wrong.length){
+  wrong = window.MATH_USER.wrong; store.set(wrong);
+}
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c =>
+  ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+/* ============ 状态 ============ */
+let cat = "number";            // 当前大类 id
+let chosen = {};               // { 大类id: Set(细类id) }
+let queue = [], pos = 0, shown = false;
+let fromWrong = false;         // 这一轮是不是「只练错过的」
+let tallies = { ok:0, bad:0, none:0 };
+let qStart = 0, roundStart = 0, lastMs = 0, roundMs = 0;
+let pendingBad = null;         // 刚点了「算错了」、等着填错答的那道题
+
+const catOf = id => window.MATH.cats.find(c => c.id === id);
+const liveCats = window.MATH.cats.filter(c => c.subs.length);
+
+/* 默认：每个有内容的大类全选 */
+window.MATH.cats.forEach(c => { chosen[c.id] = new Set(c.subs.map(s => s.id)); });
+
+/* ============ 骨架 ============ */
+$("app").innerHTML = `
+  <div class="cats" id="cats"></div>
+
+  <div class="opts">
+    <div class="optrow">
+      <div class="field">
+        <label for="count">题量</label>
+        <select id="count">
+          <option value="10">10 题</option>
+          <option value="20" selected>20 题</option>
+          <option value="30">30 题</option>
+          <option value="50">50 题</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="filter">出题范围</label>
+        <select id="filter">
+          <option value="all" selected>新题（现场生成）</option>
+          <option value="wrong">只练错过的</option>
+        </select>
+      </div>
+      <div class="spacer"></div>
+      <button class="btn primary" id="start">开始</button>
+    </div>
+    <div class="picker">
+      <button class="btn" id="openPicker">选细类</button>
+      <span class="sum" id="pickSum"></span>
+      <span class="spacer" style="flex:1"></span>
+      <button class="linkbtn" id="openWrong">我的错题</button>
+    </div>
+  </div>
+
+  <div id="stage"></div>
+
+  <div class="overlay" id="pickerBox" hidden>
+    <div class="sheet">
+      <div class="sheethead">
+        <b id="pickTitle">选细类</b>
+        <button class="linkbtn" id="selAll">全选</button>
+        <button class="linkbtn" id="selNone">全不选</button>
+        <span style="flex:1"></span>
+        <button class="btn" id="closePicker">完成</button>
+      </div>
+      <div class="sheetbody" id="subs"></div>
+    </div>
+  </div>
+
+  <div class="overlay" id="wrongBox" hidden>
+    <div class="sheet">
+      <div class="sheethead">
+        <b>我的错题</b>
+        <span class="sum" id="wrongCount"></span>
+        <span style="flex:1"></span>
+        <button class="btn" id="closeWrong">关闭</button>
+      </div>
+      <div class="sheetbody">
+        <div class="list" id="wrongList"></div>
+        <div style="padding:13px 15px;border-top:1px solid var(--rule)">
+          <div style="display:flex;gap:9px;flex-wrap:wrap;margin-bottom:11px">
+            <button class="btn" id="practiceWrong">只练这些</button>
+            <button class="btn" id="dlWrong">下载存档</button>
+            <button class="btn" id="clearWrong">清空</button>
+          </div>
+          <div style="font-size:12px;color:var(--ink-soft);margin-bottom:6px">
+            换设备：把下载到的 <code>math_user.js</code> 和本页放同一目录，
+            或者把下面框里的内容贴到新设备上导入。
+          </div>
+          <textarea id="wrongBoxText" spellcheck="false"></textarea>
+          <button class="btn" id="importWrong" style="margin-top:8px">导入框里的内容</button>
+        </div>
+      </div>
+    </div>
+  </div>
+`;
+
+/* ============ 大类按钮 ============ */
+function buildCats(){
+  $("cats").innerHTML = window.MATH.cats.map(c =>
+    '<button data-c="'+c.id+'" aria-pressed="'+(c.id===cat)+'"'+
+    (c.subs.length ? '' : ' disabled title="还没建"')+'>'+
+    esc(c.name)+(c.subs.length ? '' : ' ·待建')+'</button>').join("");
+  $("cats").querySelectorAll("button").forEach(b => {
+    b.onclick = () => { cat = b.dataset.c; buildCats(); buildSubs(); updateSum(); };
+  });
+}
+
+/* ============ 细类浮层 ============ */
+function buildSubs(){
+  const c = catOf(cat);
+  $("pickTitle").textContent = c.name + " · 选细类";
+  $("subs").innerHTML = c.subs.length ? c.subs.map(s =>
+    '<label class="subrow"><input type="checkbox" data-s="'+s.id+'"'+
+    (chosen[cat].has(s.id) ? " checked" : "")+'>'+
+    '<span class="nm">'+esc(s.name)+'</span></label>').join("")
+    : '<div class="empty">这一类还没建。</div>';
+  $("subs").querySelectorAll("input").forEach(inp => {
+    inp.onchange = () => {
+      inp.checked ? chosen[cat].add(inp.dataset.s) : chosen[cat].delete(inp.dataset.s);
+      updateSum();
+    };
+  });
+}
+function updateSum(){
+  const c = catOf(cat), n = chosen[cat].size;
+  $("pickSum").textContent = !c.subs.length ? c.name + " 还没建"
+    : n === c.subs.length ? c.name + "：全部 " + n + " 个细类"
+    : n === 0 ? c.name + "：一个都没选" : c.name + "：选了 " + n + " / " + c.subs.length;
+}
+
+/* ============ 出题 ============ */
+function buildQueue(){
+  queue = []; pos = 0; shown = false; pendingBad = null;
+  tallies = { ok:0, bad:0, none:0 };
+  const n = parseInt($("count").value, 10);
+
+  if(fromWrong){
+    const pool = wrong.slice();
+    for(let i = pool.length - 1; i > 0; i--){
+      const j = Math.floor(Math.random() * (i + 1));
+      const t = pool[i]; pool[i] = pool[j]; pool[j] = t;
+    }
+    queue = pool.slice(0, n).map(w => ({
+      cat:w.cat, sub:w.sub, catName:w.catName, subName:w.subName,
+      q:w.q, a:w.a, note:w.note
+    }));
+    return;
+  }
+
+  const c = catOf(cat);
+  const subs = c.subs.filter(s => chosen[cat].has(s.id));
+  if(!subs.length) return;
+  for(let i = 0; i < n; i++){
+    const s = subs[i % subs.length];
+    const made = s.gen();
+    queue.push({ cat:c.id, sub:s.id, catName:c.name, subName:s.name,
+                 q:made.q, a:made.a, note:made.note });
+  }
+  /* 打乱，免得细类一段一段扎堆 */
+  for(let i = queue.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    const t = queue[i]; queue[i] = queue[j]; queue[j] = t;
+  }
+}
+
+function fmtMs(ms){
+  const s = ms / 1000;
+  if(s < 60) return s.toFixed(1) + " 秒";
+  return Math.floor(s / 60) + " 分 " + Math.round(s % 60) + " 秒";
+}
+
+/* ============ 渲染 ============ */
+function render(){
+  if(pos >= queue.length){ renderDone(); return; }
+  const it = queue[pos];
+  qStart = Date.now();
+  if(pos === 0 && !roundStart) roundStart = Date.now();
+
+  $("stage").innerHTML = `
+    <div class="bar">
+      <span>第 <b>${pos+1}</b> / ${queue.length} 题</span>
+      <span>${esc(it.catName)} · ${esc(it.subName)}</span>
+      <span class="spacer"></span>
+      <span>对 <b>${tallies.ok}</b>　错 <b>${tallies.bad}</b>　不会 <b>${tallies.none}</b></span>
+    </div>
+    <div class="card">
+      <div class="where">${esc(it.subName)}</div>
+      <div class="q">${it.q}</div>
+      <div id="ansSlot"></div>
+      <div class="timer" id="timer"></div>
+    </div>
+    <div class="mybox" id="mybox" hidden>
+      <div class="t">算成了几？填了以后复盘时能看见错在哪儿——<b>可以不填</b>，直接点「下一题」。</div>
+      <div class="r">
+        <input type="text" id="myVal" placeholder="我算成了…" autocomplete="off">
+        <button class="btn" id="myNext">下一题</button>
+      </div>
+    </div>
+    <div class="acts" id="acts">
+      <button class="btn primary" id="reveal">看答案（空格）</button>
+    </div>
+    <div class="acts grade" id="grade">
+      <button class="btn ok"   id="gOk">1　算对了</button>
+      <button class="btn bad"  id="gBad">2　算错了</button>
+      <button class="btn none" id="gNone">3　没算出来</button>
+    </div>
+  `;
+  $("reveal").onclick = reveal;
+  $("gOk").onclick   = () => grade("ok");
+  $("gBad").onclick  = () => grade("bad");
+  $("gNone").onclick = () => grade("none");
+  $("myNext").onclick = commitBad;
+  $("myVal").onkeydown = e => { if(e.key === "Enter"){ e.preventDefault(); commitBad(); } };
+}
+
+function reveal(){
+  if(shown) return;
+  shown = true;
+  lastMs = Date.now() - qStart;
+  const it = queue[pos];
+  $("ansSlot").innerHTML =
+    '<div class="ans"><div class="lab">答案</div><div class="v">' + it.a + '</div>' +
+    (it.note ? '<div class="note">' + it.note + '</div>' : '') + '</div>';
+  $("timer").textContent = "这题用了 " + fmtMs(lastMs);
+  $("acts").style.display = "none";
+  $("grade").classList.add("on");
+}
+
+function grade(how){
+  if(!shown) return;
+  tallies[how]++;
+  const it = queue[pos];
+
+  if(how === "ok"){ next(); return; }
+
+  /* 错了或不会：先登记，再问要不要填自己算成了几 */
+  pendingBad = it;
+  recordWrong(it, how, "");
+  if(how === "bad"){
+    $("grade").classList.remove("on");
+    $("mybox").hidden = false;
+    $("myVal").focus();
+  } else {
+    next();
+  }
+}
+
+function commitBad(){
+  const v = $("myVal") ? $("myVal").value.trim() : "";
+  if(v && pendingBad) recordWrong(pendingBad, "bad", v);
+  pendingBad = null;
+  next();
+}
+
+function next(){
+  pendingBad = null;
+  pos++; shown = false;
+  render();
+}
+
+/* 错题按题面去重：同一道题再错一次就累加次数 */
+function recordWrong(it, how, my){
+  const i = wrong.findIndex(w => w.q === it.q);
+  if(i >= 0){
+    const w = wrong[i];
+    if(!my || w.my !== my) w.n = (w.n || 1) + (my ? 0 : 1);
+    if(my) w.my = my;
+    w.how = how; w.t = Date.now();
+  } else {
+    wrong.push({ cat:it.cat, sub:it.sub, catName:it.catName, subName:it.subName,
+                 q:it.q, a:it.a, note:it.note, my:my || "", how:how, n:1, t:Date.now() });
+  }
+  store.set(wrong);
+}
+
+function renderDone(){
+  roundMs = roundStart ? Date.now() - roundStart : 0;
+  const n = queue.length || 1;
+  const rate = Math.round(tallies.ok / n * 100);
+  $("stage").innerHTML = `
+    <div class="done">
+      <h2>这一轮做完了</h2>
+      <div class="stats">
+        <div><b>${queue.length}</b>题量</div>
+        <div><b>${rate}%</b>正确率</div>
+        <div><b>${tallies.ok}</b>算对</div>
+        <div><b>${tallies.bad}</b>算错</div>
+        <div><b>${tallies.none}</b>没算出</div>
+      </div>
+      <div class="stats">
+        <div><b>${fmtMs(roundMs)}</b>总用时</div>
+        <div><b>${fmtMs(roundMs / n)}</b>平均每题</div>
+      </div>
+      <div style="display:flex;gap:9px;justify-content:center;flex-wrap:wrap;margin-top:6px">
+        <button class="btn primary" id="again">再来一轮（空格）</button>
+        <button class="btn" id="doWrong">只练错过的</button>
+        <button class="btn" id="seeWrong">看错题</button>
+      </div>
+    </div>`;
+  $("again").onclick = () => { fromWrong = false; $("filter").value = "all"; go(); };
+  $("doWrong").onclick = () => { fromWrong = true; $("filter").value = "wrong"; go(); };
+  $("seeWrong").onclick = openWrong;
+}
+
+function go(){
+  roundStart = 0;
+  fromWrong = $("filter").value === "wrong";
+  if(fromWrong && !wrong.length){
+    $("stage").innerHTML = '<div class="done"><h2>还没有错题</h2>' +
+      '<div style="color:var(--ink-soft);font-size:13px">先做一轮新题，' +
+      '点过「算错了」或「没算出来」的题会攒在这儿。</div></div>';
+    return;
+  }
+  buildQueue();
+  if(!queue.length){
+    $("stage").innerHTML = '<div class="done"><h2>没有可出的题</h2>' +
+      '<div style="color:var(--ink-soft);font-size:13px">' +
+      '这个大类下一个细类都没选。点「选细类」勾几个。</div></div>';
+    return;
+  }
+  render();
+}
+
+/* ============ 错题本 ============ */
+function openWrong(){
+  $("wrongBox").hidden = false;
+  $("wrongCount").textContent = wrong.length ? "共 " + wrong.length + " 道" : "";
+  $("wrongList").innerHTML = wrong.length ? wrong.slice().reverse().map((w, ri) => {
+    const i = wrong.length - 1 - ri;
+    return '<div class="item"><div class="body">' +
+      '<div class="qq">' + w.q + '</div>' +
+      '<div class="aa">答案：' + w.a + '</div>' +
+      '<div class="meta">' + esc(w.catName || "") + ' · ' + esc(w.subName || "") +
+      '　错 ' + (w.n || 1) + ' 次' +
+      (w.how === "none" ? '　没算出来' : '') +
+      (w.my ? '　<span class="mine">我算成了 ' + esc(w.my) + '</span>' : '') +
+      '</div></div>' +
+      '<button class="linkbtn" data-rm="' + i + '">移出</button></div>';
+  }).join("") : '<div class="empty">还没有错题。</div>';
+  $("wrongList").querySelectorAll("[data-rm]").forEach(b => {
+    b.onclick = () => {
+      wrong.splice(parseInt(b.dataset.rm, 10), 1);
+      store.set(wrong); openWrong();
+    };
+  });
+  $("wrongBoxText").value = "window.MATH_USER = " +
+    JSON.stringify({ wrong: wrong }, null, 1) + ";";
+}
+
+/* ============ 事件 ============ */
+$("start").onclick = go;
+$("openPicker").onclick = () => { buildSubs(); $("pickerBox").hidden = false; };
+$("closePicker").onclick = () => { $("pickerBox").hidden = true; };
+$("selAll").onclick  = () => { chosen[cat] = new Set(catOf(cat).subs.map(s=>s.id)); buildSubs(); updateSum(); };
+$("selNone").onclick = () => { chosen[cat] = new Set(); buildSubs(); updateSum(); };
+$("openWrong").onclick = openWrong;
+$("closeWrong").onclick = () => { $("wrongBox").hidden = true; };
+$("practiceWrong").onclick = () => {
+  $("wrongBox").hidden = true; $("filter").value = "wrong"; go();
+};
+$("clearWrong").onclick = () => {
+  if(confirm("清空全部错题？清了找不回来。")){ wrong = []; store.set(wrong); openWrong(); }
+};
+$("dlWrong").onclick = () => {
+  const blob = new Blob([$("wrongBoxText").value], {type:"text/javascript"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = "math_user.js";
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+};
+$("importWrong").onclick = () => {
+  const txt = $("wrongBoxText").value;
+  const m = txt.match(/\{[\s\S]*\}/);
+  if(!m){ alert("没认出内容。整段 math_user.js 或者里面那个大括号都行。"); return; }
+  try{
+    const obj = JSON.parse(m[0]);
+    if(!Array.isArray(obj.wrong)) throw new Error("没有 wrong 数组");
+    wrong = obj.wrong; store.set(wrong); openWrong();
+    alert("导入了 " + wrong.length + " 道错题。");
+  }catch(e){ alert("解析失败：" + e.message); }
+};
+
+document.addEventListener("keydown", e => {
+  if(e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+  if(!$("wrongBox").hidden || !$("pickerBox").hidden) return;
+  if(e.code === "Space"){
+    e.preventDefault();
+    if($("again")) { $("again").click(); return; }
+    if(!shown && $("reveal")) reveal();
+    return;
+  }
+  if(!shown) return;
+  if(e.key === "1" && $("gOk"))   $("gOk").click();
+  if(e.key === "2" && $("gBad"))  $("gBad").click();
+  if(e.key === "3" && $("gNone")) $("gNone").click();
+});
+
+/* ============ 起飞 ============ */
+buildCats();
+buildSubs();
+updateSum();
+$("stage").innerHTML = '<div class="done"><h2>选好了就开始</h2>' +
+  '<div style="color:var(--ink-soft);font-size:13px;line-height:1.8">' +
+  '题目是<b>现场生成</b>的，没有题库，不会重样。<br>' +
+  '看完答案自己判：<b>算对了 / 算错了 / 没算出来</b>。' +
+  '键盘上就是空格、1、2、3。<br>' +
+  '判「算错了」还能填一句自己算成了几，以后复盘看得见。</div></div>';
+</script>
