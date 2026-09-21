@@ -40,7 +40,8 @@
 **「自行决定」的边界**：即便使用者说了自行决定，碰到下面三条也要**回来问一句**：
 
 1. **不改既有约束**——已经定下的规则、原则（比如「和书上一样」「难字按篇圈」）。
-2. **不改数据格式**——`data.js` 六板块的字段格式、`user.js` 结构、中间稿格式。
+2. **不改数据格式**——语文 `data.js` 六板块的字段格式、`user.js` 结构、中间稿格式；
+   数学 `gen()` 返回的 `{q, a, note}` 三字段约定、错题本的存储结构。
 3. **不引入新依赖**——除了已在用的（pymupdf、pypinyin、playwright），不擅自加库。
 
 超出这三条的，哪怕说了自行决定，也回来确认。
@@ -82,10 +83,16 @@
 
 ## 五、文档分工（改哪份）
 
-- **历时**（发生过什么）→ `LOG.md`，只追加。
-- **现状**（现在是什么样）→ `data_structure.md` / `html_structure.md` /
-  `extract_pdf_method.md`，原地更新。
+- **历时**（发生过什么）→ `LOG.md`，只追加。**仓库根目录，全项目共用一份。**
+- **现状**（现在是什么样）→ 各模块自己的现状文档，原地更新：
+  - 总入口和模块清单 → `README.md`（根目录）
+  - 语文 → `chinese/README.md`、`chinese/data_structure.md`、
+    `chinese/html_structure.md`、`chinese/extract_pdf_method.md`
+  - 数学 → `math/engine_structure.md`
 - 同一件事只在一处写实体，别处放指针，别让两份文档各说各话。
+
+> **v0.24 起这个仓库是多科目的**（原先只有语文）。改哪一科就更新哪一科的现状文档；
+> 跨科目的事（目录结构、科目壳、新建科目）写进根 `README.md`。
 
 （`restrictions.md` 禁令库、`CORPUS-FORMAT.md` 挖空规则等文档，等真正需要时再建，
 建了在这儿和 `README.md` 补上。）
