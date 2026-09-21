@@ -68,9 +68,6 @@ function rootFrac(out, inn, den){
   return den === 1 ? top : top + "/" + den;
 }
 
-/* 负数加括号，用在乘法题面里 */
-function par(n){ return n < 0 ? "(" + n + ")" : String(n); }
-
 
 /* ============================================================
    公式排版零件 F.*
@@ -876,7 +873,7 @@ const COMPLEX = [
     const a=ri(-8,8), b=ri(-8,8);
     const w = (r,i) => r + (i<0 ? " − "+(-i) : " + "+i) + "i";
     if(Math.random() < 0.5)
-      return { q: "z = " + w(a,b) + "，" + F.pow("z̄","") + " = ?", a: w(a,-b),
+      return { q: "z = " + w(a,b) + "，z̄ = ?", a: w(a,-b),
                note: "实部不变，虚部变号。" };
     return { q: "z = " + w(a,b) + "，z · z̄ = ?", a: String(a*a+b*b),
              note: "z · z̄ = " + F.abs("z") + "² = a² + b²，是个实数。" };
