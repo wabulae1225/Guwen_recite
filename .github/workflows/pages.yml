@@ -32,7 +32,7 @@ jobs:
       - name: 挑出要发布的文件
         run: |
           set -e
-          mkdir -p _site/chinese _site/math _site/icons
+          mkdir -p _site/chinese _site/math _site/icons _site/vendor
 
           # 根目录：科目壳和 PWA 三件套
           cp index.html pwa.js sw.js manifest.webmanifest favicon.ico _site/
@@ -45,6 +45,9 @@ jobs:
 
           # 数学：页面和题目生成器
           cp math/index.html math/engine.js _site/math/
+
+          # 公式排版：KaTeX（本体 + mhchem + 字体），约 576 KB
+          cp -r vendor/katex _site/vendor/
 
           # 不让搜索引擎收录——这是个人复习用的，不是要公开传播的东西
           printf 'User-agent: *\nDisallow: /\n' > _site/robots.txt
