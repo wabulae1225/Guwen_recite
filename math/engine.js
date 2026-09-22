@@ -101,7 +101,9 @@ const UNI2TEX = [
   [/π/g, "\\pi "], [/λ/g, "\\lambda "], [/μ/g, "\\mu "], [/σ/g, "\\sigma "],
   [/Δ/g, "\\Delta "], [/√/g, "\\surd "],
   /* 函数名要用直立体，不然 sin 会被排成 s·i·n */
-  [/\b(sin|cos|tan|cot|sec|csc|log|ln|lim|max|min|exp)\b/g, "\\$1 "]
+  /* 尾部用「后面不是字母」而不是 \b：因为 log_{a} 里的 _ 在正则里算单词字符，
+     用 \b 会匹配不上，log 就被排成斜体 l·o·g 了。这是校对时截图看出来的。 */
+  [/\b(sin|cos|tan|cot|sec|csc|log|ln|lim|max|min|exp)(?![a-zA-Z])/g, "\\$1 "]
 ];
 
 /* 把一段内容变成可以嵌进 TeX 的片段。
@@ -135,6 +137,10 @@ const F = {
   /* 形如 √3/2、2√3/3 的常见组合 */
   rootFrac: (inn, den, out) =>
     K("\\frac{" + (out && out !== 1 ? out : "") + "\\sqrt{" + tex(inn) + "}}{" + tex(den) + "}"),
+
+  /* 整串就是一个公式时用它：把 <sup>/<sub>、Unicode 记号一并翻成 TeX 交给 KaTeX。
+     用途是消除「同一张卡片里 HTML 上标和 KaTeX 混排、字体不一样」。 */
+  m: x => K(tex(x)),
 
   /* 化学式，给英语/化学模块将来用。需要 mhchem 扩展，已在 vendor/ 里 */
   ce: s => K("\\ce{" + s + "}")
@@ -840,21 +846,21 @@ const EQUATION = [
   ])},
 
 { id:"exprule", name:"指数运算律", gen: formulaGen([
-    ["a<sup>m</sup> · a<sup>n</sup> = ?", "a<sup>m+n</sup>"],
-    ["a<sup>m</sup> ÷ a<sup>n</sup> = ?", "a<sup>m−n</sup>"],
-    ["(a<sup>m</sup>)<sup>n</sup> = ?", "a<sup>mn</sup>"],
-    ["a<sup>−n</sup> = ?", F.frac(1, "a<sup>n</sup>")],
-    ["a<sup>m/n</sup> = ?", F.sqrt("a<sup>m</sup>", "n")],
-    ["a<sup>0</sup> = ?（a ≠ 0）", "1"]
+    [F.m("a<sup>m</sup> · a<sup>n</sup>") + " = ?", F.m("a<sup>m+n</sup>")],
+    [F.m("a<sup>m</sup> ÷ a<sup>n</sup>") + " = ?", F.m("a<sup>m−n</sup>")],
+    [F.m("(a<sup>m</sup>)<sup>n</sup>") + " = ?", F.m("a<sup>mn</sup>")],
+    [F.m("a<sup>−n</sup>") + " = ?", F.frac(1, "a<sup>n</sup>")],
+    [F.m("a<sup>m/n</sup>") + " = ?", F.sqrt("a<sup>m</sup>", "n")],
+    [F.m("a<sup>0</sup>") + " = ?（a ≠ 0）", "1"]
   ])},
 
 { id:"logrule", name:"对数运算律与换底", gen: formulaGen([
-    ["log<sub>a</sub>(MN) = ?", "log<sub>a</sub>M + log<sub>a</sub>N"],
+    [F.m("log<sub>a</sub>(MN)") + " = ?", F.m("log<sub>a</sub>M + log<sub>a</sub>N")],
     ["log<sub>a</sub>" + F.frac("M","N") + " = ?", "log<sub>a</sub>M − log<sub>a</sub>N"],
-    ["log<sub>a</sub>M<sup>n</sup> = ?", "n·log<sub>a</sub>M"],
-    ["换底公式 log<sub>a</sub>b = ?", F.frac("log<sub>c</sub>b", "log<sub>c</sub>a")],
-    ["log<sub>a</sub>b · log<sub>b</sub>a = ?", "1", "换底的直接推论。"],
-    ["a<sup>log<sub>a</sub>N</sup> = ?", "N"],
+    [F.m("log<sub>a</sub>M<sup>n</sup>") + " = ?", F.m("n·log<sub>a</sub>M")],
+    ["换底公式 " + F.m("log<sub>a</sub>b") + " = ?", F.frac("log<sub>c</sub>b", "log<sub>c</sub>a")],
+    [F.m("log<sub>a</sub>b · log<sub>b</sub>a") + " = ?", "1", "换底的直接推论。"],
+    [F.m("a<sup>log_a N</sup>") + " = ?", "N"],
     ["log<sub>a<sup>n</sup></sub>b<sup>m</sup> = ?", F.frac("m","n") + "·log<sub>a</sub>b"]
   ])},
 
@@ -1019,8 +1025,8 @@ const PROBABILITY = [
   }},
 
 { id:"combrule", name:"组合数性质与二项式定理", gen: formulaGen([
-    ["C<sub>n</sub><sup>m</sup> = C<sub>n</sub><sup>?</sup>", "C<sub>n</sub><sup>n−m</sup>", "对称性，算 C₁₀⁸ 就去算 C₁₀²。"],
-    ["C<sub>n</sub><sup>m</sup> + C<sub>n</sub><sup>m−1</sup> = ?", "C<sub>n+1</sub><sup>m</sup>", "杨辉三角每一行的生成规律。"],
+    [F.m("C<sub>n</sub><sup>m</sup>") + " = ?", F.m("C<sub>n</sub><sup>n−m</sup>"), "对称性，算 C₁₀⁸ 就去算 C₁₀²。"],
+    [F.m("C<sub>n</sub><sup>m</sup> + C<sub>n</sub><sup>m−1</sup>") + " = ?", F.m("C<sub>n+1</sub><sup>m</sup>"), "杨辉三角每一行的生成规律。"],
     ["(a + b)<sup>n</sup> 展开式的通项 T<sub>k+1</sub> = ?",
      "C<sub>n</sub><sup>k</sup>·a<sup>n−k</sup>·b<sup>k</sup>", "注意是第 k+1 项。"],
     ["C<sub>n</sub><sup>0</sup> + C<sub>n</sub><sup>1</sup> + … + C<sub>n</sub><sup>n</sup> = ?",
