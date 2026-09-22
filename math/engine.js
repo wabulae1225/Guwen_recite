@@ -88,18 +88,31 @@ function rootFrac(out, inn, den){
 /* Unicode 记号和零星 HTML → TeX。
    这张表不是拍脑袋列的：统计过 F.* 的全部实参，实际只用到 15 种记号，
    下面在那个基础上多备了些常见的，加新记号往这儿加一行即可。 */
+const SUPMAP = {"⁰":"0","¹":"1","²":"2","³":"3","⁴":"4","⁵":"5","⁶":"6",
+                "⁷":"7","⁸":"8","⁹":"9","ⁿ":"n","⁺":"+","⁻":"-"};
+const SUBMAP = {"₀":"0","₁":"1","₂":"2","₃":"3","₄":"4","₅":"5","₆":"6",
+                "₇":"7","₈":"8","₉":"9","ₙ":"n","₊":"+","₋":"-"};
+
 const UNI2TEX = [
   [/<sup>([\s\S]*?)<\/sup>/g, "^{$1}"],
   [/<sub>([\s\S]*?)<\/sub>/g, "_{$1}"],
-  [/²/g, "^{2}"], [/³/g, "^{3}"], [/⁴/g, "^{4}"], [/ⁿ/g, "^{n}"],
-  [/₀/g, "_{0}"], [/₁/g, "_{1}"], [/₂/g, "_{2}"], [/₃/g, "_{3}"], [/ₙ/g, "_{n}"],
+  /* 上下标必须**成组**转：C₁₀ 要变成 C_{10}，一个一个转会得到 C_{1}_{0}，
+     那是「双下标」，KaTeX 直接报错。Sₙ₋₁ 同理。 */
+  [/[⁰¹²³⁴⁵⁶⁷⁸⁹ⁿ⁺⁻]+/g, m => "^{" + m.replace(/./g, c => SUPMAP[c] || c) + "}"],
+  [/[₀₁₂₃₄₅₆₇₈₉ₙ₊₋]+/g, m => "_{" + m.replace(/./g, c => SUBMAP[c] || c) + "}"],
+  /* 分数字符没有数学字体，得换成真分数 */
+  [/½/g, "\\tfrac{1}{2}"], [/¼/g, "\\tfrac{1}{4}"], [/¾/g, "\\tfrac{3}{4}"],
+  [/[—–]/g, "\\text{—}"],
   [/−/g, "-"], [/·/g, "\\cdot "], [/×/g, "\\times "], [/÷/g, "\\div "],
   [/′/g, "'"], [/±/g, "\\pm "], [/≠/g, "\\ne "], [/≤/g, "\\le "], [/≥/g, "\\ge "],
   [/∞/g, "\\infty "], [/∈/g, "\\in "], [/∥/g, "\\parallel "], [/⊥/g, "\\perp "],
   [/⟺/g, "\\Longleftrightarrow "], [/→/g, "\\to "], [/ℝ/g, "\\mathbb{R}"],
   [/α/g, "\\alpha "], [/β/g, "\\beta "], [/θ/g, "\\theta "], [/φ/g, "\\varphi "],
   [/π/g, "\\pi "], [/λ/g, "\\lambda "], [/μ/g, "\\mu "], [/σ/g, "\\sigma "],
-  [/Δ/g, "\\Delta "], [/√/g, "\\surd "],
+  [/Δ/g, "\\Delta "],
+  /* TeX 里 % 是注释符，不转义会把后面整行吃掉；$ # & 同理 */
+  [/%/g, "\\%"], [/\$/g, "\\$"], [/#/g, "\\#"], [/&/g, "\\&"],
+  [/°/g, "^\\circ "], [/…/g, "\\dots "], [/∑/g, "\\sum "], [/∫/g, "\\int "],
   /* 函数名要用直立体，不然 sin 会被排成 s·i·n */
   /* 尾部用「后面不是字母」而不是 \b：因为 log_{a} 里的 _ 在正则里算单词字符，
      用 \b 会匹配不上，log 就被排成斜体 l·o·g 了。这是校对时截图看出来的。 */
@@ -110,8 +123,61 @@ const UNI2TEX = [
    已经是 F.* 产物的（<span class="tex">…</span>）先拆出里面的 TeX 再用。 */
 function tex(x){
   let s = String(x).replace(/<span class="tex">([\s\S]*?)<\/span>/g, "$1");
+  /* √ 要先于别的规则处理，且必须带上被开方的部分，否则只得到一个光秃秃的根号，
+     没有上划线——「√112」看上去就是个奇怪的勾加个数字。 */
+  s = s.replace(/√\(([^()]*)\)/g, "\\sqrt{$1}")
+       .replace(/√([0-9]+(?:\.[0-9]+)?|[A-Za-z][A-Za-z0-9]*)/g, "\\sqrt{$1}")
+       .replace(/√/g, "\\surd ");          /* 实在跟不上东西的，退回光根号 */
   for(const [re, to] of UNI2TEX) s = s.replace(re, to);
   return s;
+}
+
+/* ---------- 自动排版：把题面/答案/提示里没走 F.* 的公式也交给 KaTeX ----------
+
+   背景：F.* 只覆盖了显式调用的地方，而大量题面是直接拼字符串的
+   （"√112 = ?（化到最简）"、"72 × 42 = ?"），这些从来没经过 KaTeX，
+   于是同一个页面里一半是排好的公式、一半是裸字符，很不统一。
+
+   做法：**按中文字符切段**。中文是天然的分隔符——
+   一段连续的非中文内容，只要里面有数学记号，就整段交给 KaTeX。
+   已经是 <span class="tex"> 的部分和 <br> 原样保护，不重复处理。      */
+
+/* 一段文本要不要当公式，两条任一成立：
+   一、含「一看就是数学」的记号（希腊字母、上下标、根号、π…），如 cosα、256π、[0, π]；
+   二、含运算符且含字母或数字，如 72 × 42 = ?。
+   分开写是因为「cosα」「256π」没有运算符，但显然是公式。 */
+const MATHY_STRONG = /[√²³⁴⁵⁶⁷⁸⁹⁰ⁿ⁺⁻₀₁₂₃₄₅₆₇₈₉ₙ₊₋αβθφπλμσΔℝ∞°⟺∥⊥∈∑∫′½¼¾]|<sup>|<sub>/;
+const MATHY_OP  = /[=+\-−×÷·\/^±≤≥≠<>…→]/;
+const MATHY_SYM = /[0-9A-Za-z]/;
+/* 中文字符和中文标点——按它们切段 */
+const CJK_RUN = /[^\u4e00-\u9fff\u3400-\u4dbf\u3000-\u303f\uff01-\uff65]+/g;
+
+function mathifyPlain(t){
+  return t.replace(CJK_RUN, run => {
+    if(!MATHY_STRONG.test(run) && !(MATHY_OP.test(run) && MATHY_SYM.test(run))) return run;
+    const m = run.match(/^(\s*)([\s\S]*?)(\s*)$/);
+    if(!m || !m[2]) return run;
+    return m[1] + K(tex(m[2])) + m[3];
+  });
+}
+
+function mathify(s){
+  if(s == null) return s;
+  /* 已排好的 TeX 和换行原样留着，其余部分才去识别 */
+  return String(s)
+    .split(/(<span class="tex">[\s\S]*?<\/span>|<br>)/g)
+    .map((part, i) => (i % 2 ? part : mathifyPlain(part)))
+    .join("");
+}
+
+/* 给一个细类套上自动排版，题库里一个字都不用改 */
+function typeset(sub){
+  const raw = sub.gen;
+  return { id: sub.id, name: sub.name, gen: function(){
+    const r = raw();
+    return { q: mathify(r.q), a: mathify(r.a),
+             note: r.note ? mathify(r.note) : r.note };
+  }};
 }
 
 /* 包成待渲染的标记。页面上的 typeset() 认这个 class。 */
@@ -146,6 +212,23 @@ const F = {
   ce: s => K("\\ce{" + s + "}")
 };
 
+
+
+/* 拼多项式用的两个零件。**系数为 1 时不写出来**——
+   数学里写「x²」不写「1x²」，写「1x」看着就不对。
+   lead 是首项（不带前置加号），term 是后续项（带 + / −）。 */
+function lead(v, sym){
+  if(!sym) return String(v);
+  if(v === 1) return sym;
+  if(v === -1) return "−" + sym;
+  return v + sym;
+}
+function term(v, sym){
+  if(v === 0) return "";
+  const av = Math.abs(v);
+  const body = (av === 1 && sym) ? sym : av + sym;
+  return (v < 0 ? " − " : " + ") + body;
+}
 
 /* ============================================================
    一、数字计算
@@ -555,7 +638,7 @@ const VECTOR = [
      "也等于 " + F.norm("a") + "·cos⟨a, b⟩。"],
     ["a 在 b 方向上的投影向量 = ?",
      F.frac("a · b", F.norm("b") + "²") + " · b"],
-    [F.norm("a") + "² 用数量积怎么写？", "a · a"]
+    [F.sq(F.norm("a")) + " 用数量积怎么写？", "a · a"]
   ])},
 
 { id:"vline", name:"三点共线 / 基本定理", gen: formulaGen([
@@ -788,8 +871,7 @@ const EQUATION = [
 { id:"quadroot", name:"二次方程快速求根", gen:function(){
     const p=ri(-9,9), q=ri(-9,9);
     const b=-(p+q), c=p*q;
-    const t = v => (v<0 ? " − "+(-v) : " + "+v);
-    return { q: "x²" + t(b) + "x" + t(c) + " = 0，x = ?",
+    return { q: "x²" + term(b,"x") + term(c,"") + " = 0，x = ?",
              a: (p===q ? "x₁ = x₂ = "+p : "x₁ = "+Math.min(p,q)+"，x₂ = "+Math.max(p,q)),
              note: "十字相乘：找两个数，和为 " + (-b) + "、积为 " + c + "。" };
   }},
@@ -797,10 +879,10 @@ const EQUATION = [
 { id:"vieta", name:"韦达定理", gen:function(){
     const a=ri(1,4), b=ri(-9,9), c=ri(-9,9);
     if(Math.random() < 0.5)
-      return { q: a+"x²" + (b<0?" − "+(-b):" + "+b) + "x" + (c<0?" − "+(-c):" + "+c)
+      return { q: lead(a,"x²") + term(b,"x") + term(c,"")
                 + " = 0 的两根之和 x₁ + x₂ = ?",
                a: frac(-b, a), note: "x₁ + x₂ = −" + F.frac("b","a") };
-    return { q: a+"x²" + (b<0?" − "+(-b):" + "+b) + "x" + (c<0?" − "+(-c):" + "+c)
+    return { q: lead(a,"x²") + term(b,"x") + term(c,"")
               + " = 0 的两根之积 x₁x₂ = ?",
              a: frac(c, a), note: "x₁x₂ = " + F.frac("c","a") };
   }},
@@ -808,7 +890,7 @@ const EQUATION = [
 { id:"disc", name:"判别式", gen:function(){
     const a=ri(1,3), b=ri(-8,8), c=ri(-8,8);
     const d=b*b-4*a*c;
-    return { q: a+"x²" + (b<0?" − "+(-b):" + "+b) + "x" + (c<0?" − "+(-c):" + "+c)
+    return { q: lead(a,"x²") + term(b,"x") + term(c,"")
               + " = 0，Δ = ? 有几个实根？",
              a: "Δ = " + d + "　→　" + (d>0 ? "两个不等实根" : d===0 ? "两个相等实根" : "无实根"),
              note: "Δ = b² − 4ac" };
@@ -829,9 +911,8 @@ const EQUATION = [
     if(p===q) q=p+3;
     const lo=Math.min(p,q), hi=Math.max(p,q);
     const b=-(p+q), c=p*q;
-    const t = v => (v<0 ? " − "+(-v) : " + "+v);
     const gt = Math.random() < 0.5;
-    return { q: "x²" + t(b) + "x" + t(c) + (gt ? " > 0" : " < 0") + "，解集 = ?",
+    return { q: "x²" + term(b,"x") + term(c,"") + (gt ? " > 0" : " < 0") + "，解集 = ?",
              a: gt ? "x < "+lo+" 或 x > "+hi : lo+" < x < "+hi,
              note: "两根是 "+lo+" 和 "+hi+"。开口向上：大于零取两边，小于零取中间。" };
   }},
@@ -970,22 +1051,20 @@ const DERIVATIVE = [
 
 { id:"dpoly", name:"多项式求导", gen:function(){
     const a=ri(1,5), b=ri(-6,6), c=ri(-8,8), d=ri(-9,9);
-    const t = (v, s) => (v===0 ? "" : (v<0 ? " − "+(-v) : " + "+v) + s);
-    const q = a+"x³" + t(b,"x²") + t(c,"x") + t(d,"");
-    const t2 = (v, s) => (v===0 ? "" : (v<0 ? " − "+(-v) : " + "+v) + s);
-    return { q: "f(x) = " + q + "<br>f′(x) = ?",
-             a: (3*a)+"x²" + t2(2*b,"x") + t2(c,""),
+    return { q: "f(x) = " + lead(a,"x³") + term(b,"x²") + term(c,"x") + term(d,"")
+              + "<br>f′(x) = ?",
+             a: lead(3*a,"x²") + term(2*b,"x") + term(c,""),
              note: "逐项用 (xⁿ)′ = n·xⁿ⁻¹，常数项导数为 0。" };
   }},
 
 { id:"dtangent", name:"某点处的切线斜率", gen:function(){
     const a=ri(1,4), b=ri(-5,5), c=ri(-6,6), x0=ri(-3,3);
     const k = 3*a*x0*x0 + 2*b*x0 + c;
-    const t = (v, s) => (v===0 ? "" : (v<0 ? " − "+(-v) : " + "+v) + s);
-    return { q: "f(x) = " + a+"x³" + t(b,"x²") + t(c,"x")
+    return { q: "f(x) = " + lead(a,"x³") + term(b,"x²") + term(c,"x")
               + "<br>曲线在 x = " + x0 + " 处的切线斜率 k = ?",
              a: String(k),
-             note: "k = f′(" + x0 + ")，先求 f′(x) = " + (3*a) + "x²" + t(2*b,"x") + t(c,"") + " 再代入。" };
+             note: "k = f′(" + x0 + ")，先求 f′(x) = " + lead(3*a,"x²")
+                 + term(2*b,"x") + term(c,"") + " 再代入。" };
   }},
 
 { id:"dmono", name:"单调性与极值", gen: formulaGen([
@@ -1124,7 +1203,7 @@ const SEQUENCE = [
     ["裂项：" + F.frac(1, "n(n+k)") + " = ?", F.frac(1,"k") + "(" + F.frac(1,"n") + " − " + F.frac(1,"n+k") + ")"],
     ["裂项：" + F.frac(1, F.sqrt("n+1") + " + " + F.sqrt("n")) + " = ?",
      F.sqrt("n+1") + " − " + F.sqrt("n"), "分母有理化就出来了。"],
-    ["已知 Sₙ 求 aₙ 的方法", "aₙ = Sₙ − Sₙ₋₁（n ≥ 2），а₁ = S₁ 单独算", "n = 1 必须单独验，最常丢分的地方。"],
+    ["已知 Sₙ 求 aₙ 的方法", "aₙ = Sₙ − Sₙ₋₁（n ≥ 2），a₁ = S₁ 单独算", "n = 1 必须单独验，最常丢分的地方。"],
     ["错位相减法用在什么数列上？", "等差 × 等比 的乘积数列"]
   ])}
 
@@ -1140,16 +1219,16 @@ const SEQUENCE = [
 
 window.MATH = {
   cats: [
-    { id:"number",     name:"数字计算",       subs: NUMBER },
-    { id:"trig",       name:"三角计算",       subs: TRIG },
-    { id:"vector",     name:"向量计算",       subs: VECTOR },
-    { id:"geometry",   name:"立体与平面几何", subs: GEOMETRY },
-    { id:"analytic",   name:"解析几何",       subs: ANALYTIC },
-    { id:"equation",   name:"方程与不等式",   subs: EQUATION },
-    { id:"complex",    name:"复数计算",       subs: COMPLEX },
-    { id:"derivative", name:"导数计算",       subs: DERIVATIVE },
-    { id:"probability",name:"概率统计",       subs: PROBABILITY },
-    { id:"sequence",   name:"数列",           subs: SEQUENCE }
+    { id:"number",     name:"数字计算",       subs: NUMBER.map(typeset) },
+    { id:"trig",       name:"三角计算",       subs: TRIG.map(typeset) },
+    { id:"vector",     name:"向量计算",       subs: VECTOR.map(typeset) },
+    { id:"geometry",   name:"立体与平面几何", subs: GEOMETRY.map(typeset) },
+    { id:"analytic",   name:"解析几何",       subs: ANALYTIC.map(typeset) },
+    { id:"equation",   name:"方程与不等式",   subs: EQUATION.map(typeset) },
+    { id:"complex",    name:"复数计算",       subs: COMPLEX.map(typeset) },
+    { id:"derivative", name:"导数计算",       subs: DERIVATIVE.map(typeset) },
+    { id:"probability",name:"概率统计",       subs: PROBABILITY.map(typeset) },
+    { id:"sequence",   name:"数列",           subs: SEQUENCE.map(typeset) }
   ]
 };
 
