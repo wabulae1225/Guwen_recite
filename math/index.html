@@ -8,6 +8,12 @@
 <link rel="icon" href="../icons/icon-192.png">
 <script src="../pwa.js" defer></script>
 
+<!-- 公式排版：KaTeX + mhchem（化学式）。文件在仓库 vendor/ 里，不联网。
+     这两行不加 defer——页面末尾的内联脚本在解析时就要用到 window.katex。 -->
+<link rel="stylesheet" href="../vendor/katex/katex.min.css">
+<script src="../vendor/katex/katex.min.js"></script>
+<script src="../vendor/katex/contrib/mhchem.min.js"></script>
+
 <!-- 题目生成器，必须和本文件放在同一个目录里 -->
 <script src="engine.js"></script>
 
@@ -92,24 +98,13 @@ select{background:#fff;border:1px solid var(--rule);border-radius:2px;padding:6p
   word-break:break-word}
 .q sup{font-size:.62em}
 
-/* ---- 公式排版：不引库，纯 CSS 拼出分数、根号、向量箭头 ----
-   engine.js 里的 F.* 生成这些结构。将来若换成 KaTeX，
-   只需重写 F.* 的实现，题库内容一个字都不用改。 */
-.fr{display:inline-block;vertical-align:middle;text-align:center;margin:0 .16em}
-.fr>span{display:block;padding:0 .3em;line-height:1.25}
-.fr>span:first-child{border-bottom:1px solid currentColor}
-.sq{display:inline-block;white-space:nowrap}
-.sq>b{font-weight:inherit;border-top:1px solid currentColor;
-  padding:.08em .16em 0 .08em;margin-left:-.06em}
-.vc{position:relative;display:inline-block;padding-top:.18em}
-.vc::before{content:"\2192";position:absolute;top:-.62em;left:0;right:0;
-  font-size:.64em;line-height:1;text-align:center}
-.ab{display:inline-block;padding:0 .04em;border-left:1px solid currentColor;
-  border-right:1px solid currentColor}
-.ab>i{font-style:normal;padding:0 .16em}
-.nm{display:inline-block;padding:0 .04em;
-  border-left:3px double currentColor;border-right:3px double currentColor}
-.nm>i{font-style:normal;padding:0 .18em}
+/* ---- 公式排版：交给 KaTeX ----
+   engine.js 的 F.* 吐出 <span class="tex">TeX</span>，
+   页面渲染完一张卡片后由 typeset() 统一排版。 */
+.katex{font-size:1.1em}
+.ans .katex{color:inherit}
+.q .katex,.ans .katex{white-space:normal}
+
 .ans{margin-top:18px;border-top:1px dashed var(--rule);padding-top:15px}
 .ans .lab{font-size:11.5px;color:var(--ink-faint);letter-spacing:.08em;margin-bottom:6px}
 .ans .val{font-size:23px;font-family:var(--serif);color:var(--cinnabar);line-height:1.5;
@@ -352,7 +347,23 @@ function render(){
   }
 
   $("app").innerHTML = head + body;
+  typeset($("app"));
   bind();
+}
+
+/* 把卡片里所有 <span class="tex"> 交给 KaTeX 排版。
+   KaTeX 没加载上（比如本地直接双击、文件缺失）就原样留着 TeX 源码，
+   难看但读得懂，页面不会因此崩。 */
+function typeset(root){
+  if(!window.katex || !root) return;
+  root.querySelectorAll("span.tex").forEach(el => {
+    const src = el.textContent;
+    try{
+      window.katex.render(src, el, { throwOnError:false, displayMode:false });
+    }catch(e){
+      el.textContent = src;      /* 排不出来就留原文 */
+    }
+  });
 }
 
 function subsLabel(){
@@ -643,6 +654,7 @@ function overlay(headHTML, bodyHTML, after){
   el.innerHTML = '<div class="sheet"><div class="head">' + headHTML + '</div>'
                + '<div class="body">' + bodyHTML + '</div></div>';
   document.body.appendChild(el);
+  typeset(el);
   el.onclick = e => { if(e.target === el){ closeOverlay(); render(); } };
   if(after) after(el);
 }

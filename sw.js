@@ -9,7 +9,7 @@
    **改完代码要把 VERSION 加一**，否则浏览器可能还在用旧缓存。
    ============================================================ */
 
-const VERSION = "v2";   /* v0.30：数学补齐十个大类 + 公式排版 */
+const VERSION = "v3";   /* v0.31：公式改用 KaTeX */
 const CACHE = "xkfx-" + VERSION;
 
 /* 装机时就抓下来的东西。路径全用相对的——
@@ -27,7 +27,33 @@ const PRECACHE = [
   "./chinese/data.js",
   "./chinese/user.js",
   "./math/index.html",
-  "./math/engine.js"
+  "./math/engine.js",
+
+  /* 公式排版：KaTeX 本体 + mhchem（化学式）+ 全部字体。
+     字体一起预缓存是为了断网时也能排版——20 个 woff2 合计约 254 KB。 */
+  "./vendor/katex/katex.min.css",
+  "./vendor/katex/katex.min.js",
+  "./vendor/katex/contrib/mhchem.min.js",
+  "./vendor/katex/fonts/KaTeX_AMS-Regular.woff2",
+  "./vendor/katex/fonts/KaTeX_Caligraphic-Bold.woff2",
+  "./vendor/katex/fonts/KaTeX_Caligraphic-Regular.woff2",
+  "./vendor/katex/fonts/KaTeX_Fraktur-Bold.woff2",
+  "./vendor/katex/fonts/KaTeX_Fraktur-Regular.woff2",
+  "./vendor/katex/fonts/KaTeX_Main-Bold.woff2",
+  "./vendor/katex/fonts/KaTeX_Main-BoldItalic.woff2",
+  "./vendor/katex/fonts/KaTeX_Main-Italic.woff2",
+  "./vendor/katex/fonts/KaTeX_Main-Regular.woff2",
+  "./vendor/katex/fonts/KaTeX_Math-BoldItalic.woff2",
+  "./vendor/katex/fonts/KaTeX_Math-Italic.woff2",
+  "./vendor/katex/fonts/KaTeX_SansSerif-Bold.woff2",
+  "./vendor/katex/fonts/KaTeX_SansSerif-Italic.woff2",
+  "./vendor/katex/fonts/KaTeX_SansSerif-Regular.woff2",
+  "./vendor/katex/fonts/KaTeX_Script-Regular.woff2",
+  "./vendor/katex/fonts/KaTeX_Size1-Regular.woff2",
+  "./vendor/katex/fonts/KaTeX_Size2-Regular.woff2",
+  "./vendor/katex/fonts/KaTeX_Size3-Regular.woff2",
+  "./vendor/katex/fonts/KaTeX_Size4-Regular.woff2",
+  "./vendor/katex/fonts/KaTeX_Typewriter-Regular.woff2"
 ];
 
 self.addEventListener("install", e => {
